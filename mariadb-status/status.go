@@ -81,6 +81,7 @@ func main() {
 	}
 }
 
+// Stores the status values in a InfluxDB instance.
 func storeStatus(s string, u int64) {
 	slice1 := []int64{u}
 	slice2 := [][]int64{slice1}
@@ -99,6 +100,7 @@ func storeStatus(s string, u int64) {
 	fmt.Println(string(response))
 }
 
+// Get a counter from the recorded status values.
 func getCounter(s string) int64 {
 	if *average == true && *interval > 1 {
 		return (status[s] - prevStatus[s]) / *interval

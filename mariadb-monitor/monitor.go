@@ -6,9 +6,9 @@ import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"github.com/mariadb-tools/common"
 	"github.com/mariadb-tools/dbhelper"
 	"log"
-	"os"
 )
 
 var status map[string]int64
@@ -32,8 +32,7 @@ func main() {
 
 	flag.Parse()
 	if *version == true {
-		fmt.Println("MariaDB Tools version 0.0.1")
-		os.Exit(0)
+		common.Version()
 	}
 	var address string
 	if *socket != "" {

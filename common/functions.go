@@ -2,8 +2,15 @@
 package common
 
 import (
+	"fmt"
+	"os"
 	"strconv"
 )
+
+func Version() {
+	fmt.Println("MariaDB Tools version 0.0.1")
+	os.Exit(0)
+}
 
 func DrawHashline(t string, l int) string {
 	var hashline string
