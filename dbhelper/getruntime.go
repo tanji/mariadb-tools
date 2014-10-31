@@ -2,17 +2,41 @@
 package dbhelper
 
 import (
-	_ "database/sql"
+	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"log"
 )
 
-func GetSlaveStatus(db *sqlx.DB) map[string]interface{} {
-	type Status struct {
-		Key   string
-		Value string
+type Processlist struct {
+	Id       uint64
+	User     string
+	Host     string
+	Database sql.NullString
+	Command  string
+	Time     float64
+	State    string
+}
+
+func Connect(user string, password string, address string) *sqlx.DB {
+	db, _ := sqlx.Open("mysql", user+":"+password+"@"+address+"/")
+	err := db.Ping()
+	if err != nil {
+		log.Fatal(err)
 	}
+	return db
+}
+
+func GetProcesslist(db *sqlx.DB) []Processlist {
+	pl := []Processlist{}
+	err := db.Select(&pl, "SELECT id, user, host, `db` AS `database`, command, time_ms as time, state FROM INFORMATION_SCHEMA.PROCESSLIST")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return pl
+}
+
+func GetSlaveStatus(db *sqlx.DB) map[string]interface{} {
 	rows, err := db.Queryx("SHOW SLAVE STATUS")
 	if err != nil {
 		log.Fatal(err)
@@ -35,10 +59,6 @@ func GetSlaveStatus(db *sqlx.DB) map[string]interface{} {
 }
 
 func GetSlaveHosts(db *sqlx.DB) map[string]interface{} {
-	type Status struct {
-		Key   string
-		Value string
-	}
 	rows, err := db.Queryx("SHOW SLAVE HOSTS")
 	if err != nil {
 		log.Fatal(err)
