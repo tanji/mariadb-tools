@@ -1,4 +1,4 @@
-// get.go
+// dbhelper.go
 package dbhelper
 
 import (
@@ -25,6 +25,16 @@ func Connect(user string, password string, address string) *sqlx.DB {
 		log.Fatal(err)
 	}
 	return db
+}
+
+func GetAddress(host string, port string, socket string) string {
+	var address string
+	if socket != "" {
+		address = "unix(" + socket + ")"
+	} else if host != "" {
+		address = "tcp(" + host + ":" + port + ")"
+	}
+	return address
 }
 
 func GetProcesslist(db *sqlx.DB) []Processlist {
