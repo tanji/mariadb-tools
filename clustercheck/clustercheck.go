@@ -48,13 +48,13 @@ func clustercheck(w http.ResponseWriter, r *http.Request) {
 		state    int
 	)
 	if *dwr == true {
-		db.QueryRow("select variable_value as readonly from information_schema.global_variables").Scan(&readonly)
+		db.QueryRow("select variable_value as readonly from information_schema.global_variables where variable_name='read_only'").Scan(&readonly)
 	}
-	err := db.QueryRow("select variable_value as state from information_schema.global_status").Scan(&state)
+	err := db.QueryRow("select variable_value as state from information_schema.global_status where variable_name='wsrep_local_state'").Scan(&state)
 	if err != nil {
 		w.WriteHeader(503)
 		fmt.Fprintf(w, "Cannot check cluster state: %v", err)
-	} else if state == 4 || (*awd == false && state == 2) || (*dwr == true && readonly == "OFF" && state == 4) {
+	} else if (*dwr == false && state == 4) || (*awd == false && state == 2) || (*dwr == true && readonly == "OFF" && state == 4) {
 		fmt.Fprint(w, "MariaDB Cluster Node is synced.")
 	} else {
 		w.WriteHeader(503)
