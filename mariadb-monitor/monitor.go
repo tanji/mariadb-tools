@@ -10,9 +10,9 @@ import (
 	"github.com/mariadb-tools/dbhelper"
 	"github.com/nsf/termbox-go"
 	"log"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 )
 
 var (
@@ -24,15 +24,14 @@ var (
 )
 
 var (
-	master   *sqlx.DB
-	slave    *sqlx.DB
-	version  = flag.Bool("version", false, "Return version")
-	user     = flag.String("user", "", "User for MariaDB login")
-	password = flag.String("password", "", "Password for MariaDB login")
-	masterUrl  = flag.String("host", "", "MariaDB host IP and port (optional), specifed in the host:[port] format")
-	socket   = flag.String("socket", "/var/run/mysqld/mysqld.sock", "Path of MariaDB unix socket")
-	port     = flag.String("port", "3306", "TCP Port of MariaDB server")
-	rpluser	 = flag.String("rpluser", "", "Replication user in the [user]:[password] form")
+	master    *sqlx.DB
+	slave     *sqlx.DB
+	version   = flag.Bool("version", false, "Return version")
+	user      = flag.String("user", "", "User for MariaDB login")
+	password  = flag.String("password", "", "Password for MariaDB login")
+	masterUrl = flag.String("host", "", "MariaDB host IP and port (optional), specifed in the host:[port] format")
+	socket    = flag.String("socket", "/var/run/mysqld/mysqld.sock", "Path of MariaDB unix socket")
+	rpluser   = flag.String("rpluser", "", "Replication user in the [user]:[password] form")
 	// command specific-options
 	slaves = flag.String("slaves", "", "List of slaves connected to MariaDB master, separated by a comma")
 )
@@ -88,10 +87,10 @@ func main() {
 				}
 			}
 			switch event.Ch {
-				case 's':
-					ticker.Stop()
-					switchover()
-					// exit = true
+			case 's':
+				ticker.Stop()
+				switchover()
+				// exit = true
 			}
 		}
 	}
@@ -116,6 +115,8 @@ func drawMonitor() {
 		slaveVariables := dbhelper.GetVariables(slave)
 		printfTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "%15s %6s %7s %12s %20s", slaveItems[0], slaveItems[1], slaveVariables["LOG_BIN"], slaveStatus.Using_Gtid, slaveHealth(slaveStatus.Slave_IO_Running, slaveStatus.Slave_SQL_Running, slaveStatus.Seconds_Behind_Master))
 		slave.Close()
+		vy += 2
+		printTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "Ctrl-Q to quit, Ctrl-S to switch over")
 		vy++
 	}
 	termbox.Flush()
@@ -149,13 +150,15 @@ func switchover() {
 
 /* Returns Host and Port from server URL. */
 func splitHostPort(s string) (string, string) {
+	var host, port string
 	items := strings.Split(s, ":")
-	host := items[0]
-	port := items[1]
-	if port == "" {
+	host = items[0]
+	if len(items) > 1 {
+		port = items[1]
+	} else {
 		port = "3306"
 	}
-	return host,port
+	return host, port
 }
 
 /* Check if a slave is in sync with his master */
@@ -166,10 +169,11 @@ func checkSlaveSync(s string) bool {
 	masterVar := dbhelper.GetVariables(master)
 	if masterVar["GTID_BINLOG_POS"] == slaveVar["GTID_CURRENT_POS"] {
 		return true
-	}	else {
+	} else {
 		return false
 	}
 }
+
 /* Returns a candidate from a list of slaves. If there's only one slave it will be the de facto candidate. */
 func electCandidate(l []string) string {
 	ll := len(l)
@@ -204,7 +208,7 @@ func electCandidate(l []string) string {
 func getSeqFromGtid(gtid string) uint64 {
 	e := strings.Split("-", gtid)
 	s, _ := strconv.ParseUint(e[2], 10, 64)
-	return s 	
+	return s
 }
 
 /* Check replication health and return status string. */
