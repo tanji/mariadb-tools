@@ -27,17 +27,22 @@ var (
 	master    *sqlx.DB
 	slave     *sqlx.DB
 	version   = flag.Bool("version", false, "Return version")
-	user      = flag.String("user", "", "User for MariaDB login")
-	password  = flag.String("password", "", "Password for MariaDB login")
-	masterUrl = flag.String("host", "", "MariaDB host IP and port (optional), specifed in the host:[port] format")
+	user      = flag.String("user", "", "User for MariaDB login, specified in the [user]:[password] format")
+	masterUrl = flag.String("host", "", "MariaDB master host IP and port (optional), specified in the host:[port] format")
 	socket    = flag.String("socket", "/var/run/mysqld/mysqld.sock", "Path of MariaDB unix socket")
-	rpluser   = flag.String("rpluser", "", "Replication user in the [user]:[password] form")
+	rpluser   = flag.String("rpluser", "", "Replication user in the [user]:[password] format")
 	// command specific-options
 	slaves = flag.String("slaves", "", "List of slaves connected to MariaDB master, separated by a comma")
 )
 
-func main() {
+var (
+	dbUser  string
+	dbPass  string
+	rplUser string
+	rplPass string
+)
 
+func main() {
 	flag.Parse()
 	if *version == true {
 		common.Version()
@@ -46,8 +51,19 @@ func main() {
 	if *slaves != "" {
 		slaveList = strings.Split(*slaves, ",")
 	}
-	masterUser, masterPass := splitHostPort(*masterUrl)
-	master = dbhelper.Connect(*user, *password, dbhelper.GetAddress(masterUser, masterPass, *socket))
+	if *masterUrl == "" {
+		log.Fatal("ERROR: No master host specified.")
+	}
+	masterHost, masterPort := splitHostPort(*masterUrl)
+	if *user == "" {
+		log.Fatal("ERROR: No master user/pair specified.")
+	}
+	dbUser, dbPass = splitPair(*user)
+	if *rpluser == "" {
+		log.Fatal("ERROR: No replication user/pair specified.")
+	}
+	rplUser, rplPass = splitPair(*rpluser)
+	master = dbhelper.Connect(dbUser, dbPass, dbhelper.GetAddress(masterHost, masterPort, *socket))
 	// If slaves option is empty, then attempt automatic discovery.
 	// fmt.Println("Length of slaveList", len(slaveList))
 	if len(slaveList) == 0 {
@@ -110,7 +126,7 @@ func drawMonitor() {
 		if len(slaveItems) != 2 {
 			log.Fatal("Slave definition incorrect:", v)
 		}
-		slave := dbhelper.Connect(*user, *password, "tcp("+v+")")
+		slave := dbhelper.Connect(dbUser, dbPass, "tcp("+v+")")
 		slaveStatus := dbhelper.GetSlaveStatus(slave)
 		slaveVariables := dbhelper.GetVariables(slave)
 		printfTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "%15s %6s %7s %12s %20s", slaveItems[0], slaveItems[1], slaveVariables["LOG_BIN"], slaveStatus.Using_Gtid, slaveHealth(slaveStatus.Slave_IO_Running, slaveStatus.Slave_SQL_Running, slaveStatus.Seconds_Behind_Master))
@@ -135,35 +151,43 @@ func switchover() {
 	} else {
 		printTb(0, 2, termbox.ColorWhite, termbox.ColorBlack, "Slave in sync. Switching over")
 		newMasterHost, newSlavePort := splitHostPort(candidate)
-		slave := dbhelper.Connect(*user, *password, "tcp("+candidate+")")
+		slave := dbhelper.Connect(dbUser, dbPass, "tcp("+candidate+")")
 		slave.Exec("STOP SLAVE")
-		cm := "CHANGE MASTER TO master_host='" + newMasterHost + "', master_port=" + newSlavePort
+		cm := "CHANGE MASTER TO master_host='" + newMasterHost + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "', master_use_gtid=current_pos"
 		_, err := master.Exec(cm)
 		if err != nil {
 			log.Fatal("Change master failed:", cm)
 		}
+		master.Exec("START SLAVE")
 		slave.Exec("RESET SLAVE ALL")
 		printTb(0, 3, termbox.ColorWhite, termbox.ColorBlack, "Switchover complete")
 		termbox.Flush()
 	}
 }
 
-/* Returns Host and Port from server URL. */
+/* Returns two host and port items from a pair, e.g. host:port */
 func splitHostPort(s string) (string, string) {
-	var host, port string
 	items := strings.Split(s, ":")
-	host = items[0]
-	if len(items) > 1 {
-		port = items[1]
+	if len(items) == 1 {
+		return items[0], "3306"
 	} else {
-		port = "3306"
+		return items[0], items[1]
 	}
-	return host, port
+}
+
+/* Returns generic items from a pair, e.g. user:pass */
+func splitPair(s string) (string, string) {
+	items := strings.Split(s, ":")
+	if len(items) == 1 {
+		return items[0], ""
+	} else {
+		return items[0], items[1]
+	}
 }
 
 /* Check if a slave is in sync with his master */
 func checkSlaveSync(s string) bool {
-	slave := dbhelper.Connect(*user, *password, "tcp("+s+")")
+	slave := dbhelper.Connect(dbUser, dbPass, "tcp("+s+")")
 	defer slave.Close()
 	slaveVar := dbhelper.GetVariables(slave)
 	masterVar := dbhelper.GetVariables(master)
@@ -185,7 +209,7 @@ func electCandidate(l []string) string {
 		i := 0
 		hiseq := 0
 		for _, v := range l {
-			slave := dbhelper.Connect(*user, *password, "tcp("+v+")")
+			slave := dbhelper.Connect(dbUser, dbPass, "tcp("+v+")")
 			vars := dbhelper.GetVariables(slave)
 			seqList[i] = getSeqFromGtid(vars["GTID_CURRENT_POS"])
 			var max uint64
