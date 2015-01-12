@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const debug = false
+
 type Processlist struct {
 	Id       uint64
 	User     string
@@ -73,6 +75,7 @@ type SlaveStatus struct {
 	Gtid_IO_Pos                   string
 }
 
+/* Connect to a MySQL server. Must be deprecated, use MySQLConnect instead */
 func Connect(user string, password string, address string) *sqlx.DB {
 	db, _ := sqlx.Open("mysql", user+":"+password+"@"+address+"/")
 	err := db.Ping()
@@ -80,6 +83,11 @@ func Connect(user string, password string, address string) *sqlx.DB {
 		log.Fatal(err)
 	}
 	return db
+}
+
+func MySQLConnect(user string, password string, address string) (*sqlx.DB, error) {
+	db, err := sqlx.Connect("mysql", user+":"+password+"@"+address+"/")
+	return db, err
 }
 
 func GetAddress(host string, port string, socket string) string {
@@ -213,4 +221,86 @@ func GetVariableByName(db *sqlx.DB, name string) string {
 		log.Fatal(err)
 	}
 	return value
+}
+
+func FlushTablesNoLog(db *sqlx.DB) error {
+	_, err := db.Exec("FLUSH NO_WRITE_TO_BINLOG TABLES")
+	return err
+}
+
+func FlushTablesWithReadLock(db *sqlx.DB) error {
+	_, err := db.Exec("FLUSH TABLES WITH READ LOCK")
+	return err
+}
+
+func UnlockTables(db *sqlx.DB) error {
+	_, err := db.Exec("UNLOCK TABLES")
+	return err
+}
+
+/* Check for a list of slave prerequisites.
+- Slave is connected
+- Binary log on
+- Connected to master
+- No replication filters
+*/
+
+func CheckSlavePrerequisites(db *sqlx.DB, s string, m string) bool {
+	if debug {
+		log.Printf("CheckSlavePrerequisites called")
+	}
+	err := db.Ping()
+	/* If slave is not online, skip to next iteration */
+	if err != nil {
+		log.Printf("WARNING: Slave %s is offline. Skipping", s)
+		return false
+	}
+	vars := GetVariables(db)
+	if vars["LOG_BIN"] == "OFF" {
+		log.Printf("WARNING: Binary log off. Slave %s cannot be used as candidate master.", s)
+		return false
+	}
+	if IsSlaveof(db, s, m) == false {
+		return false
+	}
+	return true
+}
+
+func IsSlaveof(db *sqlx.DB, s string, m string) bool {
+	if debug {
+		log.Printf("IsSlaveOf called")
+	}
+	ss, err := GetSlaveStatus(db)
+	if err != nil {
+		log.Printf("WARNING: Server %s is not a slave. Skipping", s)
+		return false
+	}
+	if ss.Master_Host != m {
+		log.Printf("WARNING: Slave %s is not connected to the current master %s. Skipping", s, m)
+		return false
+	}
+	return true
+}
+
+/* Check if a slave is in sync with his master */
+func CheckSlaveSync(dbS *sqlx.DB, dbM *sqlx.DB) bool {
+	if debug {
+		log.Printf("CheckSlaveSync called")
+	}
+	sGtid := GetVariableByName(dbS, "GTID_CURRENT_POS")
+	mGtid := GetVariableByName(dbM, "GTID_BINLOG_POS")
+	if sGtid == mGtid {
+		return true
+	} else {
+		return false
+	}
+}
+
+func CheckLongRunningWrites(db *sqlx.DB, thresh int) int {
+	var count int
+	err := db.QueryRowx("select count(*) from information_schema.processlist where command = 'Query' and time >= ? and info not like 'select%'").Scan(&count)
+	if err != nil {
+		log.Println(err)
+	}
+	return count
 }
