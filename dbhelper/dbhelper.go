@@ -238,7 +238,7 @@ func UnlockTables(db *sqlx.DB) error {
 	return err
 }
 
-func StopSlave(db sqlx.DB) error {
+func StopSlave(db *sqlx.DB) error {
 	_, err := db.Exec("STOP SLAVE")
 	return err
 }
