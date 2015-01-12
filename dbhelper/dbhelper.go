@@ -101,15 +101,11 @@ func GetProcesslist(db *sqlx.DB) []Processlist {
 	return pl
 }
 
-func GetSlaveStatus(db *sqlx.DB) SlaveStatus {
+func GetSlaveStatus(db *sqlx.DB) (SlaveStatus, error) {
 	db.MapperFunc(strings.Title)
 	ss := SlaveStatus{}
-	db.Get(&ss, "SHOW SLAVE STATUS")
-	/* TBD: Improve handling of empty show status
-	 if err != nil {
-		log.Fatal(err)
-	} */
-	return ss
+	err := db.Get(&ss, "SHOW SLAVE STATUS")
+	return ss, err
 }
 
 func GetSlaveHosts(db *sqlx.DB) map[string]interface{} {
