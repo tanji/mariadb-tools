@@ -47,13 +47,15 @@ var (
 )
 
 type SlaveMonitor struct {
-	Host      string
-	Port      string
-	LogBin    string
-	UsingGtid string
-	IOThread  string
-	SQLThread string
-	Delay     sql.NullInt64
+	Host        string
+	Port        string
+	LogBin      string
+	UsingGtid   string
+	CurrentGtid string
+	IOThread    string
+	SQLThread   string
+	ReadOnly    string
+	Delay       sql.NullInt64
 }
 
 func main() {
@@ -121,6 +123,7 @@ func main() {
 	interval := time.Second
 	ticker := time.NewTicker(interval * 3)
 	drawMonitor()
+Loop:
 	for exit == false {
 		select {
 		case <-ticker.C:
@@ -132,8 +135,11 @@ func main() {
 			case termbox.EventKey:
 				if event.Key == termbox.KeyCtrlS {
 					ticker.Stop()
+					close(termboxChan)
+					termbox.Close()
 					switchover()
-					break
+					log.Println("Quitting")
+					break Loop
 				}
 				if event.Key == termbox.KeyCtrlQ {
 					exit = true
@@ -152,14 +158,14 @@ func drawMonitor() {
 	printTb(0, 0, termbox.ColorWhite, termbox.ColorBlack|termbox.AttrReverse|termbox.AttrBold, "MariaDB Replication Monitor and Health Checker")
 	printfTb(0, 2, termbox.ColorWhite, termbox.ColorBlack, "    %-25s%-20s\n", "GTID Binlog Position", variable["GTID_BINLOG_POS"])
 	printfTb(0, 3, termbox.ColorWhite, termbox.ColorBlack, "    %-25s%-20s\n", "GTID Strict Mode", variable["GTID_STRICT_MODE"])
-	printfTb(0, 5, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlack, "%15s %6s %7s %12s %20s", "Slave address", "Port", "Binlog", "Using GTID", "Replication Health")
+	printfTb(0, 5, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlack, "%15s %6s %7s %12s %20s %20s %6s %3s", "Slave address", "Port", "Binlog", "Using GTID", "Current GTID", "Replication Health", "Delay", "RO")
 	vy := 6
 	for _, v := range slaveList {
 		slave := new(SlaveMonitor)
 		slave.init(v)
-		printfTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "%15s %6s %7s %12s %20s", slave.Host, slave.Port, slave.LogBin, slave.UsingGtid, slave.healthCheck())
+		printfTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "%15s %6s %7s %12s %20s %20s %6d %3s", slave.Host, slave.Port, slave.LogBin, slave.UsingGtid, slave.CurrentGtid, slave.healthCheck(), slave.Delay.Int64, slave.ReadOnly)
 		vy += 2
-		printTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "Ctrl-Q to quit, Ctrl-S to switch over")
+		printTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "   Ctrl-Q to quit, Ctrl-S to switch over")
 		vy++
 	}
 	termbox.Flush()
@@ -179,6 +185,8 @@ func (sm *SlaveMonitor) init(url string) error {
 		return err
 	}
 	sm.LogBin = dbhelper.GetVariableByName(slave, "LOG_BIN")
+	sm.ReadOnly = dbhelper.GetVariableByName(slave, "READ_ONLY")
+	sm.CurrentGtid = dbhelper.GetVariableByName(slave, "GTID_CURRENT_POS")
 	sm.UsingGtid = slaveStatus.Using_Gtid
 	sm.IOThread = slaveStatus.Slave_IO_Running
 	sm.SQLThread = slaveStatus.Slave_SQL_Running
@@ -198,14 +206,13 @@ func (sm *SlaveMonitor) healthCheck() string {
 		}
 	} else {
 		if sm.Delay.Int64 > 0 {
-			return "Running LATE: " + string(sm.Delay.Int64) + " sec"
+			return "Behind master"
 		}
 		return "Running OK"
 	}
 }
 
 func switchover() {
-	termbox.Close()
 	log.Println("Starting switchover")
 	log.Println("Flushing tables on master")
 	err := dbhelper.FlushTablesNoLog(master)
@@ -231,7 +238,10 @@ func switchover() {
 	masterGtid := dbhelper.GetVariableByName(master, "GTID_BINLOG_POS")
 	dbhelper.MasterPosWait(newMaster, masterGtid)
 	log.Println("Stopping slave thread on new master")
-	newMaster.Exec("STOP SLAVE")
+	err = dbhelper.StopSlave(newMaster)
+	if err != nil {
+		log.Println("WARNING: Stopping slave failed on new master")
+	}
 	cm := "CHANGE MASTER TO master_host='" + newMasterHost + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "', master_use_gtid=current_pos"
 	log.Println("Switching old master as a slave")
 	err = dbhelper.UnlockTables(master)
@@ -240,11 +250,17 @@ func switchover() {
 	}
 	_, err = master.Exec(cm)
 	if err != nil {
-		log.Fatal("Change master failed:", cm)
+		log.Println("WARNING: Change master failed on old master", err)
 	}
-	master.Exec("START SLAVE")
+	err = dbhelper.StartSlave(master)
+	if err != nil {
+		log.Println("WARNING: Start slave failed on old master", err)
+	}
 	log.Println("Resetting slave on new master and set read/write mode on")
-	newMaster.Exec("RESET SLAVE ALL")
+	err = dbhelper.ResetSlave(newMaster, true)
+	if err != nil {
+		log.Println("WARNING: Reset slave failed on new master")
+	}
 	newMaster.Exec("SET GLOBAL read_only=0")
 	log.Println("Switching other slaves to the new master")
 	for _, v := range slaveList {
@@ -257,13 +273,22 @@ func switchover() {
 			log.Printf("ERROR: Could not connect to slave %s, %s", v, err)
 		} else {
 			log.Printf("Change master on slave %s", v)
-			_, err := slave.Exec(cm)
+			err := dbhelper.StopSlave(slave)
 			if err != nil {
-				log.Printf("Change master failed on slave %s, %s", v, err)
+				log.Printf("WARNING: Could not stop slave on server %s, %s", v, err)
+			}
+			_, err = slave.Exec(cm)
+			if err != nil {
+				log.Printf("ERROR: Change master failed on slave %s, %s", v, err)
+			}
+			err = dbhelper.StartSlave(slave)
+			if err != nil {
+				log.Printf("ERROR: could not start slave on server %s, %s", v, err)
 			}
 		}
 	}
 	log.Println("Switchover complete")
+	return
 }
 
 /* Returns two host and port items from a pair, e.g. host:port */
