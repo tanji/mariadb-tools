@@ -296,9 +296,14 @@ func CheckSlaveSync(dbS *sqlx.DB, dbM *sqlx.DB) bool {
 	}
 }
 
+func MasterPosWait(db *sqlx.DB, gtid string) error {
+	_, err := db.Exec("SELECT MASTER_GTID_WAIT(?)", gtid)
+	return err
+}
+
 func CheckLongRunningWrites(db *sqlx.DB, thresh int) int {
 	var count int
-	err := db.QueryRowx("select count(*) from information_schema.processlist where command = 'Query' and time >= ? and info not like 'select%'").Scan(&count)
+	err := db.QueryRowx("select count(*) from information_schema.processlist where command = 'Query' and time >= ? and info not like 'select%'", thresh).Scan(&count)
 	if err != nil {
 		log.Println(err)
 	}
