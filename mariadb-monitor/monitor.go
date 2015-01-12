@@ -224,9 +224,12 @@ func switchover() {
 	if err != nil {
 		log.Println("WARNING: Could not lock tables on master", err)
 	}
-	log.Println("Switching over")
+	log.Println("Switching master")
 	newMasterHost, newSlavePort := splitHostPort(candidate)
 	newMaster := dbhelper.Connect(dbUser, dbPass, "tcp("+candidate+")")
+	log.Println("Waiting for candidate master to synchronize")
+	masterGtid := dbhelper.GetVariableByName(master, "GTID_BINLOG_POS")
+	dbhelper.MasterPosWait(newMaster, masterGtid)
 	log.Println("Stopping slave thread on new master")
 	newMaster.Exec("STOP SLAVE")
 	cm := "CHANGE MASTER TO master_host='" + newMasterHost + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "', master_use_gtid=current_pos"
