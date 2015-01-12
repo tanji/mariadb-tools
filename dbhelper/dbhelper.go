@@ -238,13 +238,31 @@ func UnlockTables(db *sqlx.DB) error {
 	return err
 }
 
+func StopSlave(db sqlx.DB) error {
+	_, err := db.Exec("STOP SLAVE")
+	return err
+}
+
+func StartSlave(db *sqlx.DB) error {
+	_, err := db.Exec("START SLAVE")
+	return err
+}
+
+func ResetSlave(db *sqlx.DB, all bool) error {
+	stmt := "RESET SLAVE"
+	if all == true {
+		stmt += " ALL"
+	}
+	_, err := db.Exec(stmt)
+	return err
+}
+
 /* Check for a list of slave prerequisites.
 - Slave is connected
 - Binary log on
 - Connected to master
 - No replication filters
 */
-
 func CheckSlavePrerequisites(db *sqlx.DB, s string, m string) bool {
 	if debug {
 		log.Printf("CheckSlavePrerequisites called")
@@ -266,6 +284,7 @@ func CheckSlavePrerequisites(db *sqlx.DB, s string, m string) bool {
 	return true
 }
 
+/* Check if slave is connected to master */
 func IsSlaveof(db *sqlx.DB, s string, m string) bool {
 	if debug {
 		log.Printf("IsSlaveOf called")
