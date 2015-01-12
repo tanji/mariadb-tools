@@ -212,6 +212,10 @@ func switchover() {
 	if err != nil {
 		log.Println("WARNING: Could not flush tables on master", err)
 	}
+	log.Println("Checking long running updates on master")
+	if dbhelper.CheckLongRunningWrites(master, 10) > 0 {
+		log.Fatal("ERROR: Long updates running on master. Cannot switchover")
+	}
 	log.Println("Electing a new master")
 	candidate := electCandidate(slaveList)
 	log.Printf("Slave %s has been elected as a new master", candidate)
