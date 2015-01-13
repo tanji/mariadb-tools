@@ -11,6 +11,7 @@ import (
 	"github.com/nsf/termbox-go"
 	"log"
 	"net"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -35,6 +36,8 @@ var (
 	slaves      = flag.String("slaves", "", "List of slaves connected to MariaDB master, separated by a comma")
 	interactive = flag.Bool("interactive", true, "Runs the MariaDB monitor in interactive mode")
 	verbose     = flag.Bool("verbose", false, "Print detailed execution info")
+	preScript   = flag.String("pre-failover-script", "", "Path of pre-failover script")
+	postScript  = flag.String("post-failover-script", "", "Path of post-failover script")
 )
 
 var (
@@ -134,12 +137,13 @@ Loop:
 			switch event.Type {
 			case termbox.EventKey:
 				if event.Key == termbox.KeyCtrlS {
+					exit = true
 					ticker.Stop()
 					close(termboxChan)
 					termbox.Close()
 					switchover()
 					log.Println("Quitting")
-					break Loop
+					goto Loop
 				}
 				if event.Key == termbox.KeyCtrlQ {
 					exit = true
@@ -226,6 +230,14 @@ func switchover() {
 	log.Println("Electing a new master")
 	candidate := electCandidate(slaveList)
 	log.Printf("Slave %s has been elected as a new master", candidate)
+	if *preScript != "" {
+		log.Printf("Calling pre-failover script")
+		out, err := exec.Command(*preScript, masterHost).CombinedOutput()
+		if err != nil {
+			log.Println("ERROR:", err)
+		}
+		log.Println(string(out))
+	}
 	log.Printf("Rejecting updates on master")
 	err = dbhelper.FlushTablesWithReadLock(master)
 	if err != nil {
@@ -286,6 +298,14 @@ func switchover() {
 				log.Printf("ERROR: could not start slave on server %s, %s", v, err)
 			}
 		}
+	}
+	if *postScript != "" {
+		log.Printf("Calling post-failover script")
+		out, err := exec.Command(*postScript, newMasterHost).CombinedOutput()
+		if err != nil {
+			log.Println("ERROR:", err)
+		}
+		log.Println(string(out))
 	}
 	log.Println("Switchover complete")
 	return
