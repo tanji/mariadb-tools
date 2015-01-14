@@ -6,6 +6,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"log"
+	"net"
 	"strings"
 )
 
@@ -342,7 +343,11 @@ func IsSlaveof(db *sqlx.DB, s string, m string) bool {
 		log.Printf("WARNING: Server %s is not a slave. Skipping", s)
 		return false
 	}
-	if ss.Master_Host != m {
+	masterHost, err := CheckHostAddr(ss.Master_Host)
+	if err != nil {
+		log.Println("ERROR: Could not resolve master hostname", ss.Master_Host)
+	}
+	if masterHost != m {
 		log.Printf("WARNING: Slave %s is not connected to the current master %s. Skipping", s, m)
 		return false
 	}
@@ -368,6 +373,16 @@ func MasterPosWait(db *sqlx.DB, gtid string) error {
 	return err
 }
 
+func SetReadOnly(db *sqlx.DB, flag bool) error {
+	if flag == true {
+		_, err := db.Exec("SET GLOBAL read_only=1")
+		return err
+	} else {
+		_, err := db.Exec("SET GLOBAL read_only=0")
+		return err
+	}
+}
+
 func CheckLongRunningWrites(db *sqlx.DB, thresh int) int {
 	var count int
 	err := db.QueryRowx("select count(*) from information_schema.processlist where command = 'Query' and time >= ? and info not like 'select%'", thresh).Scan(&count)
@@ -375,4 +390,19 @@ func CheckLongRunningWrites(db *sqlx.DB, thresh int) int {
 		log.Println(err)
 	}
 	return count
+}
+
+/* Check if string is an IP address or a hostname, return a IP address */
+func CheckHostAddr(h string) (string, error) {
+	var err error
+	if net.ParseIP(h) != nil {
+		return h, err
+	} else {
+		ha, err := net.LookupHost(h)
+		if err != nil {
+			return "", err
+		} else {
+			return ha[0], err
+		}
+	}
 }

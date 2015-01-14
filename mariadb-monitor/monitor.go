@@ -74,6 +74,10 @@ func main() {
 		log.Fatal("ERROR: No master host specified.")
 	}
 	masterHost, masterPort = splitHostPort(*masterUrl)
+	masterIP, err := dbhelper.CheckHostAddr(masterHost)
+	if err != nil {
+		log.Fatalln("ERROR: DNS resolution error for host", masterHost)
+	}
 	if *user == "" {
 		log.Fatal("ERROR: No master user/pair specified.")
 	}
@@ -85,7 +89,7 @@ func main() {
 	if *verbose {
 		log.Printf("Connecting to master server %s:%s", masterHost, masterPort)
 	}
-	var err error
+
 	master, err = dbhelper.MySQLConnect(dbUser, dbPass, dbhelper.GetAddress(masterHost, masterPort, *socket))
 	if err != nil {
 		log.Fatal("Error: could not connect to master server.")
@@ -101,7 +105,11 @@ func main() {
 	}
 	for _, v := range slaveList {
 		slaveHost, slavePort := splitHostPort(v)
-		if validateHostPort(slaveHost, slavePort) {
+		slaveIP, err := dbhelper.CheckHostAddr(slaveHost)
+		if err != nil {
+			log.Fatalln("ERROR: DNS resolution error for host", slaveHost)
+		}
+		if validateHostPort(slaveIP, slavePort) {
 			var err error
 			slave, err := dbhelper.MySQLConnect(dbUser, dbPass, dbhelper.GetAddress(slaveHost, slavePort, *socket))
 			if err != nil {
@@ -110,7 +118,7 @@ func main() {
 			if *verbose {
 				log.Printf("Checking if server %s is a slave of server %s", slaveHost, masterHost)
 			}
-			if dbhelper.IsSlaveof(slave, slaveHost, masterHost) == false {
+			if dbhelper.IsSlaveof(slave, slaveHost, masterIP) == false {
 				log.Fatalf("ERROR: Server %s is not a slave.", v)
 			}
 			slave.Close()
@@ -245,6 +253,10 @@ func switchover() {
 	}
 	log.Println("Switching master")
 	newMasterHost, newSlavePort := splitHostPort(candidate)
+	newMasterIP, err := dbhelper.CheckHostAddr(newMasterHost)
+	if err != nil {
+		log.Fatalln("ERROR: DNS resolution error for host", newMasterHost)
+	}
 	newMaster := dbhelper.Connect(dbUser, dbPass, "tcp("+candidate+")")
 	log.Println("Waiting for candidate master to synchronize")
 	masterGtid := dbhelper.GetVariableByName(master, "GTID_BINLOG_POS")
@@ -254,7 +266,7 @@ func switchover() {
 	if err != nil {
 		log.Println("WARNING: Stopping slave failed on new master")
 	}
-	cm := "CHANGE MASTER TO master_host='" + newMasterHost + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "', master_use_gtid=current_pos"
+	cm := "CHANGE MASTER TO master_host='" + newMasterIP + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "', master_use_gtid=current_pos"
 	log.Println("Switching old master as a slave")
 	err = dbhelper.UnlockTables(master)
 	if err != nil {
@@ -273,7 +285,10 @@ func switchover() {
 	if err != nil {
 		log.Println("WARNING: Reset slave failed on new master")
 	}
-	newMaster.Exec("SET GLOBAL read_only=0")
+	err = dbhelper.SetReadOnly(newMaster, false)
+	if err != nil {
+		log.Println("ERROR: Could not set new master as read-write")
+	}
 	log.Println("Switching other slaves to the new master")
 	for _, v := range slaveList {
 		if v == candidate {
@@ -297,6 +312,11 @@ func switchover() {
 			if err != nil {
 				log.Printf("ERROR: could not start slave on server %s, %s", v, err)
 			}
+			err = dbhelper.SetReadOnly(slave, true)
+			if err != nil {
+				log.Printf("ERROR: Could not set slave %s as read-only, %s", v, err)
+			}
+
 		}
 	}
 	if *postScript != "" {
