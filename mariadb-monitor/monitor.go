@@ -244,7 +244,7 @@ func switchover() {
 		if err != nil {
 			log.Println("ERROR:", err)
 		}
-		log.Println(string(out))
+		log.Println("Post-failover script complete", string(out))
 	}
 	log.Printf("Rejecting updates on master")
 	err = dbhelper.FlushTablesWithReadLock(master)
@@ -328,7 +328,7 @@ func switchover() {
 		if err != nil {
 			log.Println("ERROR:", err)
 		}
-		log.Println(string(out))
+		log.Println("Post-failover script complete", string(out))
 	}
 	log.Println("Switchover complete")
 	return
