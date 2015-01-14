@@ -387,7 +387,7 @@ func electCandidate(l []string) string {
 			continue
 		}
 		sh, _ := splitHostPort(v)
-		if dbhelper.CheckSlavePrerequisites(sl, sh, masterHost) == false {
+		if dbhelper.CheckSlavePrerequisites(sl, sh) == false {
 			continue
 		}
 		if dbhelper.CheckBinlogFilters(master, sl) == false {

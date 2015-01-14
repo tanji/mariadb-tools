@@ -278,7 +278,7 @@ func ResetSlave(db *sqlx.DB, all bool) error {
 - Connected to master
 - No replication filters
 */
-func CheckSlavePrerequisites(db *sqlx.DB, s string, m string) bool {
+func CheckSlavePrerequisites(db *sqlx.DB, s string) bool {
 	if debug {
 		log.Printf("CheckSlavePrerequisites called")
 	}
@@ -291,9 +291,6 @@ func CheckSlavePrerequisites(db *sqlx.DB, s string, m string) bool {
 	vars := GetVariables(db)
 	if vars["LOG_BIN"] == "OFF" {
 		log.Printf("WARNING: Binary log off. Slave %s cannot be used as candidate master.", s)
-		return false
-	}
-	if IsSlaveof(db, s, m) == false {
 		return false
 	}
 	return true
@@ -333,7 +330,7 @@ func CheckReplicationFilters(m *sqlx.DB, s *sqlx.DB) bool {
 	}
 }
 
-/* Check if slave is connected to master */
+/* Check if server is connected to declared master */
 func IsSlaveof(db *sqlx.DB, s string, m string) bool {
 	if debug {
 		log.Printf("IsSlaveOf called")
@@ -348,7 +345,7 @@ func IsSlaveof(db *sqlx.DB, s string, m string) bool {
 		log.Println("ERROR: Could not resolve master hostname", ss.Master_Host)
 	}
 	if masterHost != m {
-		log.Printf("WARNING: Slave %s is not connected to the current master %s. Skipping", s, m)
+		log.Printf("WARNING: Slave %s is not connected to the current master %s (master_host=%s). Skipping", s, m, masterHost)
 		return false
 	}
 	return true
