@@ -28,6 +28,13 @@ type SlaveHosts struct {
 	Master_id uint64
 }
 
+type MasterStatus struct {
+	File             string
+	Position         string
+	Binlog_Do_DB     string
+	Binlog_Ignore_DB string
+}
+
 type SlaveStatus struct {
 	Slave_IO_State                string
 	Master_Host                   string
@@ -114,6 +121,13 @@ func GetSlaveStatus(db *sqlx.DB) (SlaveStatus, error) {
 	ss := SlaveStatus{}
 	err := db.Get(&ss, "SHOW SLAVE STATUS")
 	return ss, err
+}
+
+func GetMasterStatus(db *sqlx.DB) (MasterStatus, error) {
+	db.MapperFunc(strings.Title)
+	ms := MasterStatus{}
+	err := db.Get(&ms, "SHOW MASTER STATUS")
+	return ms, err
 }
 
 func GetSlaveHosts(db *sqlx.DB) map[string]interface{} {
@@ -282,6 +296,40 @@ func CheckSlavePrerequisites(db *sqlx.DB, s string, m string) bool {
 		return false
 	}
 	return true
+}
+
+func CheckBinlogFilters(m *sqlx.DB, s *sqlx.DB) bool {
+	ms, err := GetMasterStatus(m)
+	if err != nil {
+		log.Println("ERROR: Can't check binlog status on master")
+		return false
+	}
+	ss, err := GetMasterStatus(s)
+	if err != nil {
+		log.Println("ERROR: Can't check binlog status on slave")
+		return false
+	}
+	if ms.Binlog_Do_DB == ss.Binlog_Do_DB && ms.Binlog_Ignore_DB == ss.Binlog_Ignore_DB {
+		if debug {
+			log.Println("INFO: Binlog filters check OK")
+		}
+		return true
+	} else {
+		if debug {
+			log.Println("INFO: Binlog filters differ on both servers")
+		}
+		return false
+	}
+}
+
+func CheckReplicationFilters(m *sqlx.DB, s *sqlx.DB) bool {
+	mv := GetVariables(m)
+	sv := GetVariables(s)
+	if mv["REPLICATE_DO_TABLE"] == sv["REPLICATE_DO_TABLE"] && mv["REPLICATE_IGNORE_TABLE"] == sv["REPLICATE_IGNORE_TABLE"] && mv["REPLICATE_WILD_DO_TABLE"] == sv["REPLICATE_WILD_DO_TABLE"] && mv["REPLICATE_WILD_IGNORE_TABLE"] == sv["REPLICATE_WILD_IGNORE_TABLE"] && mv["REPLICATE_DO_DB"] == sv["REPLICATE_DO_DB"] && mv["REPLICATE_IGNORE_DB"] == sv["REPLICATE_IGNORE_DB"] {
+		return true
+	} else {
+		return false
+	}
 }
 
 /* Check if slave is connected to master */

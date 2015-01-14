@@ -370,6 +370,14 @@ func electCandidate(l []string) string {
 		if dbhelper.CheckSlavePrerequisites(sl, sh, masterHost) == false {
 			continue
 		}
+		if dbhelper.CheckBinlogFilters(master, sl) == false {
+			log.Printf("WARNING: Binlog filters differ on master and slave %s. Skipping", v)
+			continue
+		}
+		if dbhelper.CheckReplicationFilters(master, sl) == false {
+			log.Printf("WARNING: Replication filters differ on master and slave %s. Skipping", v)
+			continue
+		}
 		if dbhelper.CheckSlaveSync(sl, master) == false {
 			log.Printf("WARNING: Slave %s not in sync. Skipping", v)
 			continue
