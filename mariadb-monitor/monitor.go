@@ -270,7 +270,7 @@ func switchover() {
 	log.Println("Switching old master as a slave")
 	err = dbhelper.UnlockTables(master)
 	if err != nil {
-		log.Println("WARNING: Could not unlock tables on master", err)
+		log.Println("WARNING: Could not unlock tables on old master", err)
 	}
 	_, err = master.Exec(cm)
 	if err != nil {
@@ -279,6 +279,10 @@ func switchover() {
 	err = dbhelper.StartSlave(master)
 	if err != nil {
 		log.Println("WARNING: Start slave failed on old master", err)
+	}
+	err = dbhelper.SetReadOnly(master, true)
+	if err != nil {
+		log.Printf("ERROR: Could not set old master as read-only", err)
 	}
 	log.Println("Resetting slave on new master and set read/write mode on")
 	err = dbhelper.ResetSlave(newMaster, true)
@@ -316,7 +320,6 @@ func switchover() {
 			if err != nil {
 				log.Printf("ERROR: Could not set slave %s as read-only, %s", v, err)
 			}
-
 		}
 	}
 	if *postScript != "" {
