@@ -51,6 +51,13 @@ var (
 	masterPort string
 )
 
+type MasterMonitor struct {
+	Host      string
+	Port      string
+	BinlogPos string
+	Strict    string
+}
+
 type SlaveMonitor struct {
 	Host      string
 	Port      string
@@ -121,7 +128,7 @@ func main() {
 				log.Printf("Checking if server %s is a slave of server %s", slaveHost, masterHost)
 			}
 			if dbhelper.IsSlaveof(slave, slaveHost, masterIP) == false {
-				log.Fatalf("ERROR: Server %s is not a slave.", v)
+				log.Fatalf("ERROR: Server %s is not a slave of declared master %s", v, masterHost)
 			}
 			slave.Close()
 		}
@@ -170,9 +177,11 @@ Loop:
 func drawMonitor() {
 	termbox.Clear(termbox.ColorWhite, termbox.ColorBlack)
 	printTb(0, 0, termbox.ColorWhite, termbox.ColorBlack|termbox.AttrReverse|termbox.AttrBold, "MariaDB Replication Monitor and Health Checker")
-	printfTb(0, 2, termbox.ColorWhite, termbox.ColorBlack, "    %-25s%-20s\n", "GTID Binlog Position", variable["GTID_BINLOG_POS"])
-	printfTb(0, 3, termbox.ColorWhite, termbox.ColorBlack, "    %-25s%-20s\n", "GTID Strict Mode", variable["GTID_STRICT_MODE"])
-	printfTb(0, 5, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlack, "%15s %6s %7s %12s %20s %20s %6s %3s", "Slave address", "Port", "Binlog", "Using GTID", "Slave GTID", "Replication Health", "Delay", "RO")
+	m := new(MasterMonitor)
+	m.init()
+	printfTb(0, 2, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlack, "%15s %6s %20s %12s", "Master Host", "Port", "Binlog Position", "Strict Mode")
+	printfTb(0, 3, termbox.ColorWhite, termbox.ColorBlack, "%15s %6s %20s %12s", m.Host, m.Port, m.BinlogPos, m.Strict)
+	printfTb(0, 5, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlack, "%15s %6s %7s %12s %20s %20s %6s %3s", "Slave Host", "Port", "Binlog", "Using GTID", "Slave GTID", "Replication Health", "Delay", "RO")
 	vy := 6
 	for _, v := range slaveList {
 		slave := new(SlaveMonitor)
@@ -184,6 +193,14 @@ func drawMonitor() {
 	printTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "   Ctrl-Q to quit, Ctrl-S to switch over")
 	termbox.Flush()
 	time.Sleep(time.Duration(1) * time.Second)
+}
+
+/* Init a monitored master object */
+func (mm *MasterMonitor) init() {
+	mm.Host = masterHost
+	mm.Port = masterPort
+	mm.BinlogPos = dbhelper.GetVariableByName(master, "GTID_BINLOG_POS")
+	mm.Strict = dbhelper.GetVariableByName(master, "GTID_STRICT_MODE")
 }
 
 /* Init a monitored slave object */
@@ -239,10 +256,11 @@ func switchover() {
 	}
 	log.Println("Electing a new master")
 	candidate := electCandidate(slaveList)
+	newMasterHost, newMasterPort := splitHostPort(candidate)
 	log.Printf("Slave %s has been elected as a new master", candidate)
 	if *preScript != "" {
 		log.Printf("Calling pre-failover script")
-		out, err := exec.Command(*preScript, masterHost).CombinedOutput()
+		out, err := exec.Command(*preScript, masterHost, newMasterHost).CombinedOutput()
 		if err != nil {
 			log.Println("ERROR:", err)
 		}
@@ -254,7 +272,6 @@ func switchover() {
 		log.Println("WARNING: Could not lock tables on master", err)
 	}
 	log.Println("Switching master")
-	newMasterHost, newSlavePort := splitHostPort(candidate)
 	newMasterIP, err := dbhelper.CheckHostAddr(newMasterHost)
 	if err != nil {
 		log.Fatalln("ERROR: DNS resolution error for host", newMasterHost)
@@ -268,7 +285,7 @@ func switchover() {
 	if err != nil {
 		log.Println("WARNING: Stopping slave failed on new master")
 	}
-	cm := "CHANGE MASTER TO master_host='" + newMasterIP + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "'"
+	cm := "CHANGE MASTER TO master_host='" + newMasterIP + "', master_port=" + newMasterPort + ", master_user='" + rplUser + "', master_password='" + rplPass + "'"
 	log.Println("Switching old master as a slave")
 	err = dbhelper.UnlockTables(master)
 	if err != nil {
@@ -326,7 +343,7 @@ func switchover() {
 	}
 	if *postScript != "" {
 		log.Printf("Calling post-failover script")
-		out, err := exec.Command(*postScript, newMasterHost).CombinedOutput()
+		out, err := exec.Command(*postScript, masterHost, newMasterHost).CombinedOutput()
 		if err != nil {
 			log.Println("ERROR:", err)
 		}
