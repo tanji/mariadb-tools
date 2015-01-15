@@ -52,15 +52,15 @@ var (
 )
 
 type SlaveMonitor struct {
-	Host        string
-	Port        string
-	LogBin      string
-	UsingGtid   string
-	CurrentGtid string
-	IOThread    string
-	SQLThread   string
-	ReadOnly    string
-	Delay       sql.NullInt64
+	Host      string
+	Port      string
+	LogBin    string
+	UsingGtid string
+	SlaveGtid string
+	IOThread  string
+	SQLThread string
+	ReadOnly  string
+	Delay     sql.NullInt64
 }
 
 func main() {
@@ -172,12 +172,12 @@ func drawMonitor() {
 	printTb(0, 0, termbox.ColorWhite, termbox.ColorBlack|termbox.AttrReverse|termbox.AttrBold, "MariaDB Replication Monitor and Health Checker")
 	printfTb(0, 2, termbox.ColorWhite, termbox.ColorBlack, "    %-25s%-20s\n", "GTID Binlog Position", variable["GTID_BINLOG_POS"])
 	printfTb(0, 3, termbox.ColorWhite, termbox.ColorBlack, "    %-25s%-20s\n", "GTID Strict Mode", variable["GTID_STRICT_MODE"])
-	printfTb(0, 5, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlack, "%15s %6s %7s %12s %20s %20s %6s %3s", "Slave address", "Port", "Binlog", "Using GTID", "Current GTID", "Replication Health", "Delay", "RO")
+	printfTb(0, 5, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlack, "%15s %6s %7s %12s %20s %20s %6s %3s", "Slave address", "Port", "Binlog", "Using GTID", "Slave GTID", "Replication Health", "Delay", "RO")
 	vy := 6
 	for _, v := range slaveList {
 		slave := new(SlaveMonitor)
 		slave.init(v)
-		printfTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "%15s %6s %7s %12s %20s %20s %6d %3s", slave.Host, slave.Port, slave.LogBin, slave.UsingGtid, slave.CurrentGtid, slave.healthCheck(), slave.Delay.Int64, slave.ReadOnly)
+		printfTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "%15s %6s %7s %12s %20s %20s %6d %3s", slave.Host, slave.Port, slave.LogBin, slave.UsingGtid, slave.SlaveGtid, slave.healthCheck(), slave.Delay.Int64, slave.ReadOnly)
 		vy++
 	}
 	vy += 2
@@ -200,7 +200,7 @@ func (sm *SlaveMonitor) init(url string) error {
 	}
 	sm.LogBin = dbhelper.GetVariableByName(slave, "LOG_BIN")
 	sm.ReadOnly = dbhelper.GetVariableByName(slave, "READ_ONLY")
-	sm.CurrentGtid = dbhelper.GetVariableByName(slave, "GTID_CURRENT_POS")
+	sm.SlaveGtid = dbhelper.GetVariableByName(slave, "GTID_SLAVE_POS")
 	sm.UsingGtid = slaveStatus.Using_Gtid
 	sm.IOThread = slaveStatus.Slave_IO_Running
 	sm.SQLThread = slaveStatus.Slave_SQL_Running
@@ -268,7 +268,7 @@ func switchover() {
 	if err != nil {
 		log.Println("WARNING: Stopping slave failed on new master")
 	}
-	cm := "CHANGE MASTER TO master_host='" + newMasterIP + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "', master_use_gtid=current_pos"
+	cm := "CHANGE MASTER TO master_host='" + newMasterIP + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "', master_use_gtid=slave_pos"
 	log.Println("Switching old master as a slave")
 	err = dbhelper.UnlockTables(master)
 	if err != nil {
