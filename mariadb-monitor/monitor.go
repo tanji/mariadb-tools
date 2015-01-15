@@ -268,13 +268,13 @@ func switchover() {
 	if err != nil {
 		log.Println("WARNING: Stopping slave failed on new master")
 	}
-	cm := "CHANGE MASTER TO master_host='" + newMasterIP + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "', master_use_gtid=slave_pos"
+	cm := "CHANGE MASTER TO master_host='" + newMasterIP + "', master_port=" + newSlavePort + ", master_user='" + rplUser + "', master_password='" + rplPass + "'"
 	log.Println("Switching old master as a slave")
 	err = dbhelper.UnlockTables(master)
 	if err != nil {
 		log.Println("WARNING: Could not unlock tables on old master", err)
 	}
-	_, err = master.Exec(cm)
+	_, err = master.Exec(cm + ", master_use_gtid=slave_pos")
 	if err != nil {
 		log.Println("WARNING: Change master failed on old master", err)
 	}
