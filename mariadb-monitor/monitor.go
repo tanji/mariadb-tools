@@ -38,6 +38,8 @@ var (
 	verbose     = flag.Bool("verbose", false, "Print detailed execution info")
 	preScript   = flag.String("pre-failover-script", "", "Path of pre-failover script")
 	postScript  = flag.String("post-failover-script", "", "Path of post-failover script")
+	maxDelay    = flag.Int64("maxdelay", 0, "Maximum replication delay before initiating failover")
+	gtidCheck   = flag.Bool("gtidcheck", false, "Check that GTID sequence numbers are identical before initiating failover")
 )
 
 var (
@@ -176,10 +178,10 @@ func drawMonitor() {
 		slave := new(SlaveMonitor)
 		slave.init(v)
 		printfTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "%15s %6s %7s %12s %20s %20s %6d %3s", slave.Host, slave.Port, slave.LogBin, slave.UsingGtid, slave.CurrentGtid, slave.healthCheck(), slave.Delay.Int64, slave.ReadOnly)
-		vy += 2
-		printTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "   Ctrl-Q to quit, Ctrl-S to switch over")
 		vy++
 	}
+	vy += 2
+	printTb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "   Ctrl-Q to quit, Ctrl-S to switch over")
 	termbox.Flush()
 	time.Sleep(time.Duration(1) * time.Second)
 }
@@ -401,7 +403,16 @@ func electCandidate(l []string) string {
 			log.Printf("WARNING: Replication filters differ on master and slave %s. Skipping", v)
 			continue
 		}
-		if dbhelper.CheckSlaveSync(sl, master) == false {
+		ss, err := dbhelper.GetSlaveStatus(sl)
+		if ss.Seconds_Behind_Master.Valid == false {
+			log.Printf("WARNING: Slave %s is stopped. Skipping", v)
+			continue
+		}
+		if ss.Seconds_Behind_Master.Int64 > *maxDelay {
+			log.Printf("WARNING: Slave %s has more than %d seconds of replication delay (%d). Skipping", v, *maxDelay, ss.Seconds_Behind_Master.Int64)
+			continue
+		}
+		if *gtidCheck && dbhelper.CheckSlaveSync(sl, master) == false {
 			log.Printf("WARNING: Slave %s not in sync. Skipping", v)
 			continue
 		}
