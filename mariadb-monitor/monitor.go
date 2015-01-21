@@ -322,6 +322,8 @@ func switchover() {
 		if err != nil {
 			log.Printf("ERROR: Could not connect to slave %s, %s", v, err)
 		} else {
+			log.Printf("Waiting for slave %s to sync", v)
+			dbhelper.MasterPosWait(newMaster, masterGtid)
 			log.Printf("Change master on slave %s", v)
 			err := dbhelper.StopSlave(slave)
 			if err != nil {
