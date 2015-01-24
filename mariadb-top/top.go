@@ -40,7 +40,7 @@ func main() {
 		common.Version()
 	}
 
-	db = dbhelper.Connect(*user, *password, GetAddress(*host, *port, *socket))
+	db = dbhelper.Connect(*user, *password, dbhelper.GetAddress(*host, *port, *socket))
 
 	defer db.Close()
 	err := termbox.Init()

@@ -113,7 +113,7 @@ func main() {
 	ibpsDirtyPct := common.DecimaltoPct(ibpsDirty, ibpsPages)
 	pPrintStr("InnoDB Buffer Dirty", strconv.Itoa(ibpsDirtyPct)+"%")
 	pPrintStr("InnoDB Log Files", string(variable["INNODB_LOG_FILES_IN_GROUP"])+" files of "+humanize.IBytes(common.StrtoUint(variable["INNODB_LOG_FILE_SIZE"])))
-	pPrintStr("InnoDB log writes per hour", humanize.IBytes(uint64(status["INNODB_OS_LOG_WRITTEN"]/status["UPTIME"])*3600)
+	pPrintStr("InnoDB log writes per hour", humanize.IBytes(uint64(status["INNODB_OS_LOG_WRITTEN"]/status["UPTIME"])*3600))
 	pPrintStr("InnoDB Log Buffer", humanize.IBytes(common.StrtoUint(variable["INNODB_LOG_BUFFER_SIZE"])))
 	var iftc string
 	switch variable["INNODB_FLUSH_LOG_AT_TRX_COMMIT"] {
