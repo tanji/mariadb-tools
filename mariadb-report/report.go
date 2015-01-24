@@ -79,13 +79,13 @@ func main() {
 	db.Get(&count, "SELECT COUNT(*) FROM information_schema.schemata")
 	pPrintInt("Databases", count)
 	db.Get(&count, "SELECT COUNT(*) FROM information_schema.tables")
-	pPrintInt("Tables", count)
+	pPrintInt("Tables", count) /* Potentially unsafe for large systems */
 	pPrintStr("Datadir", variable["DATADIR"])
 	pPrintStr("Binary Log", variable["LOG_BIN"])
 	if variable["LOG_BIN"] == "ON" {
 		pPrintStr("Binlog writes per hour", humanize.IBytes(uint64(status["BINLOG_BYTES_WRITTEN"]/status["UPTIME"])*3600))
 	}
-
+	// Add stuff for slow logs
 	slaveStatus := dbhelper.GetSlaveStatus(db)
 	if slaveStatus["Slave_IO_Running"] != nil {
 		slaveIO := string(slaveStatus["Slave_IO_Running"].([]uint8))
@@ -113,6 +113,7 @@ func main() {
 	ibpsDirtyPct := common.DecimaltoPct(ibpsDirty, ibpsPages)
 	pPrintStr("InnoDB Buffer Dirty", strconv.Itoa(ibpsDirtyPct)+"%")
 	pPrintStr("InnoDB Log Files", string(variable["INNODB_LOG_FILES_IN_GROUP"])+" files of "+humanize.IBytes(common.StrtoUint(variable["INNODB_LOG_FILE_SIZE"])))
+	pPrintStr("InnoDB log writes per hour", humanize.IBytes(uint64(status["INNODB_OS_LOG_WRITTEN"]/status["UPTIME"])*3600)
 	pPrintStr("InnoDB Log Buffer", humanize.IBytes(common.StrtoUint(variable["INNODB_LOG_BUFFER_SIZE"])))
 	var iftc string
 	switch variable["INNODB_FLUSH_LOG_AT_TRX_COMMIT"] {

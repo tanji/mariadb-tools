@@ -39,15 +39,8 @@ func main() {
 	if *version == true {
 		common.Version()
 	}
-	var address string
-	if *socket != "" {
-		address = "unix(" + *socket + ")"
-	}
-	if *host != "" {
-		address = "tcp(" + *host + ":" + *port + ")"
-	}
 
-	db = dbhelper.Connect(*user, *host, address)
+	db = dbhelper.Connect(*user, *password, GetAddress(*host, *port, *socket))
 
 	defer db.Close()
 	err := termbox.Init()
@@ -79,7 +72,6 @@ func displayPl() {
 	termbox.Clear(termbox.ColorWhite, termbox.ColorBlack)
 	print_tb(0, 0, termbox.ColorWhite, termbox.ColorBlack, "MariaDB Processlist Monitor")
 	plist := dbhelper.GetProcesslist(db)
-	printf_tb(0, 1, termbox.ColorWhite, termbox.ColorBlack, "Plist.size: %d", len(plist))
 	printf_tb(0, 2, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlack, "%8s %8s %10s %10s %20s %8s %20s", "Id", "User", "Host", "Database", "Command", "Time", "State")
 	vy := 3
 	for _, v := range plist {
@@ -89,9 +81,9 @@ func displayPl() {
 		} else {
 			database = "NULL"
 		}
-		printf_tb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "%8.8d %8.8s %10.10s %10.10v %20.20s %8.4f %20.20s", v.Id, v.User, v.Host, database, v.Command, v.Time, v.State)
+		printf_tb(0, vy, termbox.ColorWhite, termbox.ColorBlack, "%8.8d %8.8s %10.10s %10.10v %20.20s %8.2f %20.20s", v.Id, v.User, v.Host, database, v.Command, v.Time*1000, v.State)
 		vy++
 	}
 	termbox.Flush()
-	time.Sleep(time.Duration(1) * time.Second)
+	time.Sleep(time.Duration(3) * time.Second)
 }
