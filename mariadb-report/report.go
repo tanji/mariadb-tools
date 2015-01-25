@@ -86,10 +86,10 @@ func main() {
 		pPrintStr("Binlog writes per hour", humanize.IBytes(uint64(status["BINLOG_BYTES_WRITTEN"]/status["UPTIME"])*3600))
 	}
 	// Add stuff for slow logs
-	slaveStatus := dbhelper.GetSlaveStatus(db)
-	if slaveStatus["Slave_IO_Running"] != nil {
-		slaveIO := string(slaveStatus["Slave_IO_Running"].([]uint8))
-		slaveSQL := string(slaveStatus["Slave_SQL_Running"].([]uint8))
+	slaveStatus, err := dbhelper.GetSlaveStatus(db)
+	if err != nil {
+		slaveIO := slaveStatus.Slave_IO_Running
+		slaveSQL := slaveStatus.Slave_SQL_Running
 		var slaveState string
 		if slaveIO == "Yes" && slaveSQL == "Yes" {
 			slaveState = "Slave configured, threads running"
