@@ -112,7 +112,7 @@ func GetProcesslist(db *sqlx.DB) []Processlist {
 	pl := []Processlist{}
 	err := db.Select(&pl, "SELECT id, user, host, `db` AS `database`, command, time_ms as time, state FROM INFORMATION_SCHEMA.PROCESSLIST")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln("ERROR: Could not get processlist", err)
 	}
 	return pl
 }
@@ -134,12 +134,9 @@ func GetMasterStatus(db *sqlx.DB) (MasterStatus, error) {
 func GetSlaveHosts(db *sqlx.DB) map[string]interface{} {
 	rows, err := db.Queryx("SHOW SLAVE HOSTS")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln("ERROR: Could not get slave hosts", err)
 	}
 	defer rows.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
 	results := make(map[string]interface{})
 	for rows.Next() {
 		err = rows.MapScan(results)
@@ -154,7 +151,7 @@ func GetSlaveHostsArray(db *sqlx.DB) []SlaveHosts {
 	sh := []SlaveHosts{}
 	err := db.Select(&sh, "SHOW SLAVE HOSTS")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln("ERROR: Could not get slave hosts array", err)
 	}
 	return sh
 }
@@ -164,7 +161,7 @@ func GetSlaveHostsDiscovery(db *sqlx.DB) []string {
 	/* This method does not return the server ports, so we cannot rely on it for the time being. */
 	err := db.Select(&slaveList, "select host from information_schema.processlist where command ='binlog dump'")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln("ERROR: Could not get slave hosts from the processlist", err)
 	}
 	return slaveList
 }
@@ -177,13 +174,13 @@ func GetStatus(db *sqlx.DB) map[string]string {
 	vars := make(map[string]string)
 	rows, err := db.Queryx("SELECT Variable_name AS variable_name, Variable_Value AS value FROM information_schema.global_status")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln("ERROR: Could not get status variable", err)
 	}
 	for rows.Next() {
 		var v Variable
 		err := rows.Scan(&v.Variable_name, &v.Value)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln("ERROR: Could not get results from status scan", err)
 		}
 		vars[v.Variable_name] = v.Value
 	}
@@ -198,7 +195,7 @@ func GetStatusAsInt(db *sqlx.DB) map[string]int64 {
 	vars := make(map[string]int64)
 	rows, err := db.Queryx("SELECT Variable_name AS variable_name, Variable_Value AS value FROM information_schema.global_status")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("ERROR: Could not get status as integer", err)
 	}
 	for rows.Next() {
 		var v Variable
@@ -208,7 +205,7 @@ func GetStatusAsInt(db *sqlx.DB) map[string]int64 {
 	return vars
 }
 
-func GetVariables(db *sqlx.DB) map[string]string {
+func GetVariables(db *sqlx.DB) (map[string]string, error) {
 	type Variable struct {
 		Variable_name string
 		Value         string
@@ -216,24 +213,24 @@ func GetVariables(db *sqlx.DB) map[string]string {
 	vars := make(map[string]string)
 	rows, err := db.Queryx("SELECT Variable_name AS variable_name, Variable_Value AS value FROM information_schema.global_variables")
 	if err != nil {
-		log.Fatal(err)
+		return vars, err
 	}
 	for rows.Next() {
 		var v Variable
 		err := rows.Scan(&v.Variable_name, &v.Value)
 		if err != nil {
-			log.Fatal(err)
+			return vars, err
 		}
 		vars[v.Variable_name] = v.Value
 	}
-	return vars
+	return vars, err
 }
 
 func GetVariableByName(db *sqlx.DB, name string) string {
 	var value string
 	err := db.QueryRowx("SELECT Variable_Value AS Value FROM information_schema.global_variables WHERE Variable_Name = ?", name).Scan(&value)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("ERROR: Could not get variable by name", err)
 	}
 	return value
 }
@@ -288,7 +285,7 @@ func CheckSlavePrerequisites(db *sqlx.DB, s string) bool {
 		log.Printf("WARN : Slave %s is offline. Skipping", s)
 		return false
 	}
-	vars := GetVariables(db)
+	vars, _ := GetVariables(db)
 	if vars["LOG_BIN"] == "OFF" {
 		log.Printf("WARN : Binary log off. Slave %s cannot be used as candidate master.", s)
 		return false
@@ -321,8 +318,8 @@ func CheckBinlogFilters(m *sqlx.DB, s *sqlx.DB) bool {
 }
 
 func CheckReplicationFilters(m *sqlx.DB, s *sqlx.DB) bool {
-	mv := GetVariables(m)
-	sv := GetVariables(s)
+	mv, _ := GetVariables(m)
+	sv, _ := GetVariables(s)
 	if mv["REPLICATE_DO_TABLE"] == sv["REPLICATE_DO_TABLE"] && mv["REPLICATE_IGNORE_TABLE"] == sv["REPLICATE_IGNORE_TABLE"] && mv["REPLICATE_WILD_DO_TABLE"] == sv["REPLICATE_WILD_DO_TABLE"] && mv["REPLICATE_WILD_IGNORE_TABLE"] == sv["REPLICATE_WILD_IGNORE_TABLE"] && mv["REPLICATE_DO_DB"] == sv["REPLICATE_DO_DB"] && mv["REPLICATE_IGNORE_DB"] == sv["REPLICATE_IGNORE_DB"] {
 		return true
 	} else {
@@ -384,7 +381,7 @@ func CheckLongRunningWrites(db *sqlx.DB, thresh int) int {
 	var count int
 	err := db.QueryRowx("select count(*) from information_schema.processlist where command = 'Query' and time >= ? and info not like 'select%'", thresh).Scan(&count)
 	if err != nil {
-		log.Println(err)
+		log.Println("ERROR: Could not check long running writes", err)
 	}
 	return count
 }
