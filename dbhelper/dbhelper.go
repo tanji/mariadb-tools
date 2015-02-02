@@ -285,12 +285,12 @@ func CheckSlavePrerequisites(db *sqlx.DB, s string) bool {
 	err := db.Ping()
 	/* If slave is not online, skip to next iteration */
 	if err != nil {
-		log.Printf("WARNING: Slave %s is offline. Skipping", s)
+		log.Printf("WARN : Slave %s is offline. Skipping", s)
 		return false
 	}
 	vars := GetVariables(db)
 	if vars["LOG_BIN"] == "OFF" {
-		log.Printf("WARNING: Binary log off. Slave %s cannot be used as candidate master.", s)
+		log.Printf("WARN : Binary log off. Slave %s cannot be used as candidate master.", s)
 		return false
 	}
 	return true
@@ -337,7 +337,7 @@ func IsSlaveof(db *sqlx.DB, s string, m string) bool {
 	}
 	ss, err := GetSlaveStatus(db)
 	if err != nil {
-		log.Printf("WARNING: Server %s is not a slave. Skipping", s)
+		log.Printf("WARN : Server %s is not a slave. Skipping", s)
 		return false
 	}
 	masterHost, err := CheckHostAddr(ss.Master_Host)
@@ -345,7 +345,7 @@ func IsSlaveof(db *sqlx.DB, s string, m string) bool {
 		log.Println("ERROR: Could not resolve master hostname", ss.Master_Host)
 	}
 	if masterHost != m {
-		log.Printf("WARNING: Slave %s is not connected to the current master %s (master_host=%s). Skipping", s, m, masterHost)
+		log.Printf("WARN : Slave %s is not connected to the current master %s (master_host=%s). Skipping", s, m, masterHost)
 		return false
 	}
 	return true
