@@ -357,7 +357,7 @@ func CheckSlaveSync(dbS *sqlx.DB, dbM *sqlx.DB) bool {
 		log.Printf("CheckSlaveSync called")
 	}
 	sGtid := GetVariableByName(dbS, "GTID_CURRENT_POS")
-	mGtid := GetVariableByName(dbM, "GTID_BINLOG_POS")
+	mGtid := GetVariableByName(dbM, "GTID_CURRENT_POS")
 	if sGtid == mGtid {
 		return true
 	} else {
