@@ -57,7 +57,7 @@ func main() {
 	defer db.Close()
 
 	status = dbhelper.GetStatusAsInt(db)
-	variable = dbhelper.GetVariables(db)
+	variable, _ = dbhelper.GetVariables(db)
 
 	out, err := exec.Command("uname", "-srm").Output()
 	if err != nil {
