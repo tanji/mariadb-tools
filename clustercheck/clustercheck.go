@@ -7,7 +7,7 @@ import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
-	"github.com/mariadb-tools/dbhelper"
+	"github.com/tanji/mariadb-tools/dbhelper"
 	"io/ioutil"
 	"log"
 	"net/http"
