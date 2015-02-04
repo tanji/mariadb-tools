@@ -386,6 +386,14 @@ func CheckLongRunningWrites(db *sqlx.DB, thresh int) int {
 	return count
 }
 
+func KillThreads(db *sqlx.DB) {
+	var ids []int
+	db.Select(&ids, "SELECT Id FROM information_schema.PROCESSLIST WHERE Command != 'binlog dump' AND User != 'system user' AND Id != CONNECTION_ID()")
+	for _, id := range ids {
+		db.Exec("KILL ?", id)
+	}
+}
+
 /* Check if string is an IP address or a hostname, return a IP address */
 func CheckHostAddr(h string) (string, error) {
 	var err error
