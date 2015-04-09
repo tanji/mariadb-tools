@@ -15,8 +15,8 @@ List of available commands:
 
 **top**	mytop clone
 
-Repmgr example usage
---------------------
-	mariadb-repmgr -host=db1:3306 -slaves=db2:3306,db3:3306 -user root -rpluser repl:lper
+## Binary releases
+
+Grab the latest binary release of the tool you need at https://github.com/tanji/mariadb-tools/releases and copy it in your `/usr/local/bin` directory. That's all which needs to be done.
 
 
