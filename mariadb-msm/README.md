@@ -81,4 +81,4 @@ You should have received a copy of the GNU General Public License along with thi
 
 ## VERSION
 
-**mariadb-msm** 0.1.2
+**mariadb-msm** 0.1.3

@@ -30,7 +30,7 @@ var failcount uint
 var msg string
 var recovery bool
 
-const msmVersion string = "0.1.2"
+const msmVersion string = "0.1.3"
 
 func main() {
 	flag.Parse()
