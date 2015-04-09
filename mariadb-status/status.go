@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -32,10 +33,12 @@ var password = flag.String("password", "", "Password for MariaDB login")
 var host = flag.String("host", "", "MariaDB host IP address or FQDN")
 var socket = flag.String("socket", "/var/run/mysqld/mysqld.sock", "Path of MariaDB unix socket")
 var port = flag.String("port", "3306", "TCP Port of MariaDB server")
+var influxDB = flag.String("influxdb", "mariadb", "InfluxDB database name")
 
 // Options specific to this command follow
 var interval = flag.Int64("interval", 1, "Sleep interval for repeated commands")
 var average = flag.Bool("average", false, "Average per second status data instead of aggregate")
+var collect = flag.Bool("collect", false, "Collect data to an influxdb instance (experimental)")
 
 func main() {
 
@@ -61,32 +64,45 @@ func main() {
 
 	defer db.Close()
 
-	status = dbhelper.GetStatusAsInt(db)
-
-	var iter uint64 = 0
-	for {
-		if (iter % 10) == 0 {
-			fmt.Printf("  %-30s%-10s  %-10s  %-10s  %-10s  %-10s\n", "Queries", "Txns", "Threads", "Aborts", "Tables", "Files")
+	if *collect == true {
+		for {
+			status = dbhelper.GetStatusAsInt(db)
+			columns := make([]string, len(status))
+			values := make([]int64, len(status))
+			i := 0
+			for k, v := range status {
+				columns[i] = strings.ToLower(k)
+				values[i] = v
+				i++
+			}
+			storeStatus(*host+"_status", columns, [][]int64{values})
+			time.Sleep(time.Duration(*interval) * time.Second)
 		}
-		prevStatus = status
+
+	} else {
+
 		status = dbhelper.GetStatusAsInt(db)
-		fmt.Printf("%5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s\n", "Que", "Sel", "Ins", "Upd", "Del", "Com", "Rbk", "Con", "Thr", "Cli", "Con", "Opn", "Opd", "Opn", "Opd")
-		// fmt.Println("Com_select", status["COM_SELECT"])
-		fmt.Printf("%5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d\n", getCounter("QUERIES"), getCounter("COM_SELECT"), getCounter("COM_INSERT"), getCounter("COM_UPDATE"), getCounter("COM_DELETE"),
-			getCounter("COM_COMMIT"), getCounter("COM_ROLLBACK"), getStatic("THREADS_CONNECTED"), getStatic("THREADS_RUNNING"), getCounter("ABORTED_CLIENTS"), getCounter("ABORTED_CONNECTS"),
-			getStatic("OPEN_TABLES"), getCounter("OPENED_TABLES"), getStatic("OPEN_FILES"), getCounter("OPENED_FILES"))
-		// storeStatus("Queries", getCounter("QUERIES"))
-		time.Sleep(time.Duration(*interval) * time.Second)
-		iter++
+
+		var iter uint64 = 0
+		for {
+			if (iter % 10) == 0 {
+				fmt.Printf("  %-30s%-10s  %-10s  %-10s  %-10s  %-10s\n", "Queries", "Txns", "Threads", "Aborts", "Tables", "Files")
+			}
+			prevStatus = status
+			status = dbhelper.GetStatusAsInt(db)
+			fmt.Printf("%5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s %5s\n", "Que", "Sel", "Ins", "Upd", "Del", "Com", "Rbk", "Con", "Thr", "Cli", "Con", "Opn", "Opd", "Opn", "Opd")
+			fmt.Printf("%5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d %5d\n", getCounter("QUERIES"), getCounter("COM_SELECT"), getCounter("COM_INSERT"), getCounter("COM_UPDATE"), getCounter("COM_DELETE"),
+				getCounter("COM_COMMIT"), getCounter("COM_ROLLBACK"), getStatic("THREADS_CONNECTED"), getStatic("THREADS_RUNNING"), getCounter("ABORTED_CLIENTS"), getCounter("ABORTED_CONNECTS"),
+				getStatic("OPEN_TABLES"), getCounter("OPENED_TABLES"), getStatic("OPEN_FILES"), getCounter("OPENED_FILES"))
+			time.Sleep(time.Duration(*interval) * time.Second)
+			iter++
+		}
 	}
 }
 
 // Stores the status values in a InfluxDB instance.
-func storeStatus(s string, u int64) {
-	slice1 := []int64{u}
-	slice2 := [][]int64{slice1}
-	ts := timeSeries{s, []string{"value"}, slice2}
-	// fmt.Printf("%s %d \n", ts.Name, ts.Points)
+func storeStatus(n string, c []string, p [][]int64) {
+	ts := timeSeries{n, c, p}
 	b, err := json.Marshal(ts)
 	js := string(b)
 	js = "[" + js + "]"
@@ -95,9 +111,11 @@ func storeStatus(s string, u int64) {
 		log.Fatal(err)
 	}
 	body := bytes.NewBuffer(b)
-	r, _ := http.Post("http://localhost:8086/db/mariadb/series?u=root&p=root", "text/json", body)
+	r, _ := http.Post("http://localhost:8086/db/"+*influxDB+"/series?u=root&p=root", "text/json", body)
 	response, _ := ioutil.ReadAll(r.Body)
-	fmt.Println(string(response))
+	if response != nil {
+		fmt.Println(string(response))
+	}
 }
 
 // Get a counter from the recorded status values.
