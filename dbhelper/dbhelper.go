@@ -37,6 +37,8 @@ type MasterStatus struct {
 }
 
 type SlaveStatus struct {
+	Connection_name               string
+	Slave_SQL_State               string
 	Slave_IO_State                string
 	Master_Host                   string
 	Master_User                   string
@@ -81,6 +83,12 @@ type SlaveStatus struct {
 	Master_SSL_Crlpath            string
 	Using_Gtid                    string
 	Gtid_IO_Pos                   string
+	Retried_transactions          uint
+	Max_relay_log_size            uint
+	Executed_log_entries          uint
+	Slave_received_heartbeats     uint
+	Slave_heartbeat_period        float64
+	Gtid_Slave_Pos                string
 }
 
 /* Connect to a MySQL server. Must be deprecated, use MySQLConnect instead */
@@ -121,6 +129,13 @@ func GetSlaveStatus(db *sqlx.DB) (SlaveStatus, error) {
 	db.MapperFunc(strings.Title)
 	ss := SlaveStatus{}
 	err := db.Get(&ss, "SHOW SLAVE STATUS")
+	return ss, err
+}
+
+func GetAllSlavesStatus(db *sqlx.DB) ([]SlaveStatus, error) {
+	db.MapperFunc(strings.Title)
+	ss := []SlaveStatus{}
+	err := db.Select(&ss, "SHOW ALL SLAVES STATUS")
 	return ss, err
 }
 
