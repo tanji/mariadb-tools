@@ -59,7 +59,7 @@ func main() {
 	for {
 		status, err := dbhelper.GetAllSlavesStatus(db)
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 		if len(status) == 0 {
 			log.Fatal("ERROR: Multisource replication is not configured on this server.")
