@@ -91,6 +91,14 @@ type SlaveStatus struct {
 	Gtid_Slave_Pos                string
 }
 
+type Privileges struct {
+	Select_priv      string
+	Process_priv     string
+	Super_priv       string
+	Repl_slave_priv  string
+	Repl_client_priv string
+}
+
 /* Connect to a MySQL server. Must be deprecated, use MySQLConnect instead */
 func Connect(user string, password string, address string) *sqlx.DB {
 	db, _ := sqlx.Open("mysql", user+":"+password+"@"+address+"/")
@@ -123,6 +131,13 @@ func GetProcesslist(db *sqlx.DB) []Processlist {
 		log.Fatalln("ERROR: Could not get processlist", err)
 	}
 	return pl
+}
+
+func GetPrivileges(db *sqlx.DB, user string) (Privileges, error) {
+	db.MapperFunc(strings.Title)
+	priv := Privileges{}
+	err := db.Get(&priv, "SELECT Select_priv, Process_priv, Super_priv, Repl_slave_priv, Repl_client_priv FROM mysql.user WHERE user = ?", user)
+	return priv, err
 }
 
 func GetSlaveStatus(db *sqlx.DB) (SlaveStatus, error) {
