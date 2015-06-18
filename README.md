@@ -28,13 +28,17 @@ First of all, install the golang runtime on your distribution: `yum install gola
 
 Create a go source folder and set the go path environment variable to this folder:
 
-```mkdir ~/go
+```
+mkdir ~/go
 export GOPATH=~/go
 cd ~/go
+```
 
 Let's say that you want to build mariadb-repmgr, just do the following and go will do everything for you:
 
-```go get github.com/tanji/mariadb-tools/mariadb-repmgr
-go install github.com/tanji/mariadb-tools/mariadb-repmgr```
+```
+go get github.com/tanji/mariadb-tools/mariadb-repmgr
+go install github.com/tanji/mariadb-tools/mariadb-repmgr
+```
 
 You will find your newly compiled binary under the ~/go/bin/ directory.
