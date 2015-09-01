@@ -147,6 +147,20 @@ func GetSlaveStatus(db *sqlx.DB) (SlaveStatus, error) {
 	return ss, err
 }
 
+func GetSlaveStatus(db *sqlx.DB) (SlaveStatus, error) {
+	db.MapperFunc(strings.Title)
+	ss := SlaveStatus{}
+	err := db.Get(&ss, "SHOW SLAVE STATUS")
+	return ss, err
+}
+
+func GetMSlaveStatus(db *sqlx.DB, conn string) (SlaveStatus, error) {
+	db.MapperFunc(strings.Title)
+	ss := SlaveStatus{}
+	err := db.Get(&ss, "SHOW SLAVE '" + conn + "' STATUS")
+	return ss, err
+}
+
 func GetAllSlavesStatus(db *sqlx.DB) ([]SlaveStatus, error) {
 	db.MapperFunc(strings.Title)
 	ss := []SlaveStatus{}
