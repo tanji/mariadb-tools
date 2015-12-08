@@ -31,7 +31,7 @@ type SlaveHosts struct {
 
 type MasterStatus struct {
 	File             string
-	Position         string
+	Position         uint
 	Binlog_Do_DB     string
 	Binlog_Ignore_DB string
 }
@@ -142,22 +142,25 @@ func GetPrivileges(db *sqlx.DB, user string) (Privileges, error) {
 
 func GetSlaveStatus(db *sqlx.DB) (SlaveStatus, error) {
 	db.MapperFunc(strings.Title)
+	udb := db.Unsafe()
 	ss := SlaveStatus{}
-	err := db.Get(&ss, "SHOW SLAVE STATUS")
+	err := udb.Get(&ss, "SHOW SLAVE STATUS")
 	return ss, err
 }
 
 func GetMSlaveStatus(db *sqlx.DB, conn string) (SlaveStatus, error) {
 	db.MapperFunc(strings.Title)
+	udb := db.Unsafe()
 	ss := SlaveStatus{}
-	err := db.Get(&ss, "SHOW SLAVE '" + conn + "' STATUS")
+	err := udb.Get(&ss, "SHOW SLAVE '"+conn+"' STATUS")
 	return ss, err
 }
 
 func GetAllSlavesStatus(db *sqlx.DB) ([]SlaveStatus, error) {
 	db.MapperFunc(strings.Title)
+	udb := db.Unsafe()
 	ss := []SlaveStatus{}
-	err := db.Select(&ss, "SHOW ALL SLAVES STATUS")
+	err := udb.Select(&ss, "SHOW ALL SLAVES STATUS")
 	return ss, err
 }
 
