@@ -3,11 +3,12 @@ package dbhelper
 
 import (
 	"database/sql"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 	"log"
 	"net"
 	"strings"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 const debug = false
@@ -109,8 +110,12 @@ func Connect(user string, password string, address string) *sqlx.DB {
 	return db
 }
 
-func MySQLConnect(user string, password string, address string) (*sqlx.DB, error) {
-	db, err := sqlx.Connect("mysql", user+":"+password+"@"+address+"/")
+func MySQLConnect(user string, password string, address string, parameters ...string) (*sqlx.DB, error) {
+	dsn := user + ":" + password + "@" + address + "/"
+	if len(parameters) > 0 {
+		dsn += "?" + parameters[0]
+	}
+	db, err := sqlx.Connect("mysql", dsn)
 	return db, err
 }
 
