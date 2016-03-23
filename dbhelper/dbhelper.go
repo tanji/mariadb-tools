@@ -7,7 +7,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -142,16 +141,14 @@ func GetPrivileges(db *sqlx.DB, user string, host string) (Privileges, error) {
 	db.MapperFunc(strings.Title)
 	priv := Privileges{}
 	stmt := "SELECT Select_priv, Process_priv, Super_priv, Repl_slave_priv, Repl_client_priv FROM mysql.user WHERE user = ? AND host = ?"
-	err := db.Get(&priv, stmt, user, host)
+	row := db.QueryRowx(stmt, user, host)
+	err := row.StructScan(&priv)
 	if err != nil {
-		if driverErr, ok := err.(*mysql.MySQLError); ok {
-			if driverErr.Number == 1141 {
-				err := db.Get(&priv, stmt, user, "%")
-				if err != nil {
-					return priv, err
-				}
-			}
+		if err == sql.ErrNoRows {
+			row := db.QueryRowx(stmt, user, "%")
+			err = row.StructScan(&priv)
 		}
+		return priv, err
 	}
 	return priv, err
 }
