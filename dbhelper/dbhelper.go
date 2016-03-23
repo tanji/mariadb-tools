@@ -7,7 +7,7 @@ import (
 	"net"
 	"strings"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -138,10 +138,21 @@ func GetProcesslist(db *sqlx.DB) []Processlist {
 	return pl
 }
 
-func GetPrivileges(db *sqlx.DB, user string) (Privileges, error) {
+func GetPrivileges(db *sqlx.DB, user string, host string) (Privileges, error) {
 	db.MapperFunc(strings.Title)
 	priv := Privileges{}
-	err := db.Get(&priv, "SELECT Select_priv, Process_priv, Super_priv, Repl_slave_priv, Repl_client_priv FROM mysql.user WHERE user = ?", user)
+	stmt := "SELECT Select_priv, Process_priv, Super_priv, Repl_slave_priv, Repl_client_priv FROM mysql.user WHERE user = ? AND host = ?"
+	err := db.Get(&priv, stmt, user, host)
+	if err != nil {
+		if driverErr, ok := err.(*mysql.MySQLError); ok {
+			if driverErr.Number == 1141 {
+				err := db.Get(&priv, stmt, user, "%")
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
 	return priv, err
 }
 
