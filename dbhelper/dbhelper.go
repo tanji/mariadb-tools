@@ -148,7 +148,7 @@ func GetPrivileges(db *sqlx.DB, user string, host string) (Privileges, error) {
 			if driverErr.Number == 1141 {
 				err := db.Get(&priv, stmt, user, "%")
 				if err != nil {
-					return nil, err
+					return priv, err
 				}
 			}
 		}
