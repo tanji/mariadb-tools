@@ -1,4 +1,4 @@
-// dbhelper.go
+// Package dbhelper
 package dbhelper
 
 import (
@@ -177,6 +177,24 @@ func GetAllSlavesStatus(db *sqlx.DB) ([]SlaveStatus, error) {
 	return ss, err
 }
 
+func ResetAllSlaves(db *sqlx.DB) error {
+	ss, err := GetAllSlavesStatus(db)
+	if err != nil {
+		return err
+	}
+	for _, src := range ss {
+		err = SetDefaultMasterConn(db, src.Connection_name)
+		if err != nil {
+			return err
+		}
+		err = ResetSlave(db, true)
+		if err != nil {
+			return err
+		}
+	}
+	return err
+}
+
 func GetMasterStatus(db *sqlx.DB) (MasterStatus, error) {
 	db.MapperFunc(strings.Title)
 	ms := MasterStatus{}
@@ -313,6 +331,11 @@ func StopSlave(db *sqlx.DB) error {
 	return err
 }
 
+func StopAllSlaves(db *sqlx.DB) error {
+	_, err := db.Exec("STOP ALL SLAVES")
+	return err
+}
+
 func StartSlave(db *sqlx.DB) error {
 	_, err := db.Exec("START SLAVE")
 	return err
@@ -323,6 +346,17 @@ func ResetSlave(db *sqlx.DB, all bool) error {
 	if all == true {
 		stmt += " ALL"
 	}
+	_, err := db.Exec(stmt)
+	return err
+}
+
+func ResetMaster(db *sqlx.DB) error {
+	_, err := db.Exec("RESET MASTER")
+	return err
+}
+
+func SetDefaultMasterConn(db *sqlx.DB, dmc string) error {
+	stmt := "SET default_master_connection='" + dmc + "'"
 	_, err := db.Exec(stmt)
 	return err
 }
