@@ -498,3 +498,13 @@ func CheckHostAddr(h string) (string, error) {
 		}
 	}
 }
+
+
+func GetSpiderShardUrl(db *sqlx.DB) (string, error) {
+        var value string        
+        err := db.QueryRowx("select  group_concat(distinct concat(coalesce(st.host,s.host ),':',coalesce(st.port,s.port))) as value  from mysql.spider_tables st left join mysql.servers s on st.server=s.server_name").Scan(&value)
+        if err != nil {
+                log.Println("ERROR: Could not get spider shards", err)
+        }
+        return value, err
+}
