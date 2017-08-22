@@ -19,7 +19,8 @@ var (
 	awd    = flag.Bool("a", false, "Available when donor")
 	dwr    = flag.Bool("d", false, "Disable when read_only flag is set (desirable when wanting to take a node out of the cluster without desync)")
 	cnf    = flag.String("c", "~/.my.cnf", "MySQL Config file to use")
-	port   = flag.Int("p", 8000, "Port to listen on")
+	port   = flag.Int("p", 8000, "TCP port to listen on")
+	sock   = flag.String("s", "/run/mysqld/mysqld.sock", "Path to mysqld unix socket file")
 	myvars map[string]string
 	db     *sqlx.DB
 )
@@ -33,6 +34,9 @@ func main() {
 		conf = strings.Replace(conf, "~", dir, 1)
 	}
 	myvars = confParser(conf)
+	if myvars["socket"] == "" {
+		myvars["socket"] = *sock
+	}
 	httpAddr := fmt.Sprintf(":%v", *port)
 	log.Printf("Listening to %v", httpAddr)
 	http.HandleFunc("/", clustercheck)
@@ -74,7 +78,7 @@ func confParser(configFile string) map[string]string {
 		for _, name := range names {
 			if strings.Index(line, name) == 0 {
 				res := strings.Split(line, "=")
-				params[name] = res[1]
+				params[name] = strings.TrimSpace(res[1])
 			}
 		}
 	}
