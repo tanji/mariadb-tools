@@ -2,17 +2,16 @@
 package main
 
 import (
-	_ "database/sql"
 	"flag"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
-	"github.com/tanji/mariadb-tools/dbhelper"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os/user"
 	"strings"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 var (
@@ -22,7 +21,6 @@ var (
 	port   = flag.Int("p", 8000, "TCP port to listen on")
 	sock   = flag.String("s", "/run/mysqld/mysqld.sock", "Path to mysqld unix socket file")
 	myvars map[string]string
-	db     *sqlx.DB
 )
 
 func main() {
@@ -45,7 +43,12 @@ func main() {
 
 func clustercheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "text/html")
-	db = dbhelper.Connect(myvars["user"], myvars["password"], dbhelper.GetAddress(myvars["host"], myvars["port"], myvars["socket"]))
+	dsn := fmt.Sprintf("%s:%s@unix(%s)/", myvars["user"], myvars["password"], myvars["socket"])
+	db, err := sqlx.Connect("mysql", dsn)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 	defer db.Close()
 	var (
 		readonly string
@@ -54,7 +57,7 @@ func clustercheck(w http.ResponseWriter, r *http.Request) {
 	if *dwr == true {
 		db.QueryRow("select variable_value as readonly from information_schema.global_variables where variable_name='read_only'").Scan(&readonly)
 	}
-	err := db.QueryRow("select variable_value as state from information_schema.global_status where variable_name='wsrep_local_state'").Scan(&state)
+	err = db.QueryRow("select variable_value as state from information_schema.global_status where variable_name='wsrep_local_state'").Scan(&state)
 	if err != nil {
 		w.WriteHeader(503)
 		fmt.Fprintf(w, "Cannot check cluster state: %v", err)
