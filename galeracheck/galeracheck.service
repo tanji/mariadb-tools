@@ -1,0 +1,10 @@
+[Unit]
+Description=Galera Check Service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/galeracheck -a -p 8000
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
