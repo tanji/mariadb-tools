@@ -58,7 +58,7 @@ func clustercheck(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(503)
 		fmt.Fprintf(w, "Cannot check cluster state: %v", err)
-	} else if (*dwr == false && state == 4) || (*awd == false && state == 2) || (*dwr == true && readonly == "OFF" && state == 4) {
+	} else if (*dwr == false && state == 4) || (*awd == true && state == 2) || (*dwr == true && readonly == "OFF" && state == 4) {
 		fmt.Fprint(w, "MariaDB Cluster Node is synced.")
 	} else {
 		w.WriteHeader(503)
