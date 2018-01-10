@@ -11,11 +11,11 @@ List of available commands:
 
 **status**	sysstat-like MariaDB server activity
 
-**repmgr** 	GTID replication switchover and monitor utility
-
 **top**	A simple mytop clone
 
 **msm** Multi-source replication monitoring
+
+**mrm** Replication-Manager for MariaDB is now hosted at https://github.com/signal18/replication-manager
 
 ## Binary releases
 
