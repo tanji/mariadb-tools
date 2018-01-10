@@ -1,1 +1,1 @@
-This project has moved to https://github.com/mariadb-corporation/replication-manager
+This project has moved to https://github.com/signal18/replication-manager
