@@ -19,19 +19,26 @@ import (
 )
 
 var (
-	cnffile  string
-	port     int
-	maxdelay int64
-	sockopt  string
-	user     string
-	password string
-	socket   string
+	cnffile     string
+	port        int
+	maxdelay    int64
+	sockopt     string
+	hostopt     string
+	portopt     string
+	user        string
+	password    string
+	mysqlsocket string
+	mysqlhost   string
+	mysqlport   string
 )
 
 func init() {
 	flag.StringVar(&cnffile, "config", "~/.my.cnf", "MySQL Config file to use")
 	flag.IntVar(&port, "port", 8000, "TCP port to listen on")
-	flag.StringVar(&sockopt, "socket", "/run/mysqld/mysqld.sock", "Path to mysqld unix socket file")
+	flag.StringVar(&sockopt, "mysql-socket", "/run/mysqld/mysqld.sock", "Path to unix socket of monitored MySQL instance")
+	flag.StringVar(&hostopt, "mysql-host", "", "Hostname or IP address of monitored MySQL instance")
+	flag.StringVar(&portopt, "mysql-port", "3306", "Port of monitored MySQL instance")
+
 	flag.Int64Var(&maxdelay, "maxdelay", 5, "Max replication delay to keep server in LB")
 }
 
@@ -72,9 +79,19 @@ func main() {
 
 	password = pkey.String()
 
-	socket = section.Key("socket").String()
-	if socket == "" {
-		socket = sockopt
+	mysqlsocket = section.Key("socket").String()
+	if mysqlsocket == "" {
+		mysqlsocket = sockopt
+	}
+
+	mysqlhost = section.Key("host").String()
+	if mysqlhost == "" {
+		mysqlhost = hostopt
+	}
+
+	mysqlport = section.Key("port").String()
+	if mysqlport == "" {
+		mysqlport = portopt
 	}
 
 	httpAddr := fmt.Sprintf(":%v", port)
@@ -86,8 +103,12 @@ func main() {
 
 func clustercheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "text/html")
-	dsn := fmt.Sprintf("%s:%s@unix(%s)/", user, password, socket)
-
+	var dsn string
+	if mysqlhost == "" {
+		dsn = fmt.Sprintf("%s:%s@unix(%s)/", user, password, mysqlsocket)
+	} else {
+		dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/", user, password, mysqlhost, mysqlport)
+	}
 	db, err := sqlx.Connect("mysql", dsn)
 	if err != nil {
 		log.Println("MySQL can't connect:", err)
