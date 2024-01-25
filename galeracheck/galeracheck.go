@@ -4,9 +4,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"os/user"
 	"strings"
 
@@ -35,44 +35,50 @@ func main() {
 	if myvars["socket"] == "" {
 		myvars["socket"] = *sock
 	}
-	httpAddr := fmt.Sprintf(":%v", *port)
-	log.Printf("Listening to %v", httpAddr)
-	http.HandleFunc("/", clustercheck)
-	log.Fatal(http.ListenAndServe(httpAddr, nil))
-}
-
-func clustercheck(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("content-type", "text/html")
 	dsn := fmt.Sprintf("%s:%s@unix(%s)/", myvars["user"], myvars["password"], myvars["socket"])
 	db, err := sqlx.Connect("mysql", dsn)
 	if err != nil {
-		log.Println(err)
+		log.Fatalln(err)
 		return
 	}
 	defer db.Close()
-	var (
-		readonly string
-		state    int
-	)
-	if *dwr == true {
-		db.QueryRow("select variable_value as readonly from information_schema.global_variables where variable_name='read_only'").Scan(&readonly)
-	}
-	err = db.QueryRow("select variable_value as state from information_schema.global_status where variable_name='wsrep_local_state'").Scan(&state)
-	if err != nil {
-		w.WriteHeader(503)
-		fmt.Fprintf(w, "Cannot check cluster state: %v", err)
-	} else if (*dwr == false && state == 4) || (*awd == true && state == 2) || (*dwr == true && readonly == "OFF" && state == 4) {
-		fmt.Fprint(w, "MariaDB Cluster Node is synced.")
-	} else {
-		w.WriteHeader(503)
-		fmt.Fprint(w, "MariaDB Cluster Node is not synced.")
+	httpAddr := fmt.Sprintf(":%v", *port)
+	log.Printf("Listening to %v", httpAddr)
+	http.HandleFunc("/", clustercheck(db))
+	log.Fatalln(http.ListenAndServe(httpAddr, nil))
+}
+
+func clustercheck(db *sqlx.DB) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "text/html")
+		var (
+			readonly string
+			state    int
+		)
+		err := db.Ping()
+		if err != nil {
+			log.Println(err)
+		}
+		if *dwr {
+			db.QueryRow("select variable_value as readonly from information_schema.global_variables where variable_name='read_only'").Scan(&readonly)
+		}
+		err = db.QueryRow("select variable_value as state from information_schema.global_status where variable_name='wsrep_local_state'").Scan(&state)
+		if err != nil {
+			w.WriteHeader(503)
+			fmt.Fprintf(w, "Cannot check cluster state: %v", err)
+		} else if (!*dwr && state == 4) || (*awd && state == 2) || (*dwr && readonly == "OFF" && state == 4) {
+			fmt.Fprint(w, "MariaDB Cluster Node is synced.")
+		} else {
+			w.WriteHeader(503)
+			fmt.Fprint(w, "MariaDB Cluster Node is not synced.")
+		}
 	}
 }
 
 func confParser(configFile string) map[string]string {
 	names := []string{"user", "password", "host", "port", "socket"}
 	params := make(map[string]string)
-	file, err := ioutil.ReadFile(configFile)
+	file, err := os.ReadFile(configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
