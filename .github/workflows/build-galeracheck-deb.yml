@@ -1,0 +1,114 @@
+name: Build and Release galeracheck Debian Package
+
+on:
+  push:
+    tags:
+      - '*-galeracheck'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Debian Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME%-galeracheck}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Build galeracheck binary
+        working-directory: ./galeracheck
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -ldflags="-w -s -X main.version=${{ steps.version.outputs.version }}" \
+            -o galeracheck \
+            .
+          file galeracheck
+          ./galeracheck -h || true
+
+      - name: Install nfpm
+        run: |
+          echo "deb [trusted=yes] https://repo.goreleaser.com/apt/ /" | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update
+          sudo apt-get install -y nfpm
+
+      - name: Build Debian package
+        working-directory: ./galeracheck
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          nfpm package --packager deb --target .
+          dpkg-deb --contents galeracheck_${VERSION}_amd64.deb
+          dpkg-deb --info galeracheck_${VERSION}_amd64.deb
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: galeracheck ${{ steps.version.outputs.version }}
+          body: |
+            # galeracheck ${{ steps.version.outputs.version }}
+
+            HTTP health check service for Galera Cluster nodes.
+
+            ## Installation
+
+            ### Debian/Ubuntu
+
+            ```bash
+            wget https://github.com/tanji/mariadb-tools/releases/download/${{ steps.version.outputs.tag }}/galeracheck_${{ steps.version.outputs.version }}_amd64.deb
+            sudo dpkg -i galeracheck_${{ steps.version.outputs.version }}_amd64.deb
+            ```
+
+            ### Configure and Start
+
+            ```bash
+            # Create MySQL config file
+            sudo tee /etc/galeracheck/my.cnf > /dev/null << 'CONFIG'
+            [mysql]
+            user=monitor
+            password=yourpassword
+            socket=/run/mysqld/mysqld.sock
+            CONFIG
+
+            # Enable and start service
+            sudo systemctl enable galeracheck
+            sudo systemctl start galeracheck
+
+            # Check status
+            sudo systemctl status galeracheck
+            curl http://localhost:8000/
+            ```
+
+            ## Changes
+
+            See commit history for details.
+          draft: false
+          prerelease: false
+          files: |
+            galeracheck/galeracheck_${{ steps.version.outputs.version }}_amd64.deb
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: galeracheck-deb-${{ steps.version.outputs.version }}
+          path: galeracheck/galeracheck_${{ steps.version.outputs.version }}_amd64.deb
+          retention-days: 90

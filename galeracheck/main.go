@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	osuser "os/user"
 	"strings"
 
@@ -18,6 +19,7 @@ import (
 )
 
 var (
+	version     = "dev"
 	cnffile     string
 	port        int
 	sockopt     string
@@ -33,6 +35,7 @@ var (
 )
 
 func init() {
+	var versionFlag bool
 	flag.StringVar(&cnffile, "config", "~/.my.cnf", "MySQL Config file to use")
 	flag.IntVar(&port, "port", 8000, "TCP port to listen on")
 	flag.StringVar(&sockopt, "mysql-socket", "/run/mysqld/mysqld.sock", "Path to unix socket of monitored MySQL instance")
@@ -40,11 +43,16 @@ func init() {
 	flag.StringVar(&portopt, "mysql-port", "3306", "Port of monitored MySQL instance")
 	flag.BoolVar(&awd, "available-when-donor", false, "Available when donor")
 	flag.BoolVar(&dwr, "disable-when-readonly", false, "Disable when read_only flag is set (desirable when wanting to take a node out of the cluster without desync)")
+	flag.BoolVar(&versionFlag, "version", false, "Print version and exit")
+	flag.Parse()
+
+	if versionFlag {
+		fmt.Printf("galeracheck version %s\n", version)
+		os.Exit(0)
+	}
 }
 
 func main() {
-	flag.Parse()
-
 	usr, _ := osuser.Current()
 
 	if strings.Contains(cnffile, "~/") {

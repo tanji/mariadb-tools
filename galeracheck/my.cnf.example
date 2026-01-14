@@ -1,0 +1,11 @@
+# Example galeracheck configuration
+# Copy to ~/.my.cnf or /etc/galeracheck/my.cnf and customize
+
+[mysql]
+user=monitor
+password=changeme
+socket=/run/mysqld/mysqld.sock
+
+# For TCP connections, use host and port instead of socket:
+# host=localhost
+# port=3306

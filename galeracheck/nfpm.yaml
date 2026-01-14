@@ -1,0 +1,53 @@
+name: "galeracheck"
+arch: "amd64"
+platform: "linux"
+version: "${VERSION}"
+section: "database"
+priority: "optional"
+maintainer: "tanji <tanji@mariadb.com>"
+description: |
+  HTTP health check service for Galera Cluster nodes
+  galeracheck is a lightweight HTTP service that monitors the health of a Galera
+  Cluster node and reports its availability status. Load balancers can poll this
+  endpoint to determine whether to route traffic to the node.
+vendor: "tanji"
+homepage: "https://github.com/tanji/mariadb-tools"
+license: "Apache-2.0"
+
+depends:
+  - systemd
+
+contents:
+  - src: ./galeracheck
+    dst: /usr/local/bin/galeracheck
+    file_info:
+      mode: 0755
+
+  - src: ./galeracheck.service
+    dst: /lib/systemd/system/galeracheck.service
+    file_info:
+      mode: 0644
+
+  - src: ./README.md
+    dst: /usr/share/doc/galeracheck/README.md
+    file_info:
+      mode: 0644
+
+  - src: ./my.cnf.example
+    dst: /usr/share/doc/galeracheck/my.cnf.example
+    file_info:
+      mode: 0644
+
+  - dst: /etc/galeracheck
+    type: dir
+    file_info:
+      mode: 0755
+
+scripts:
+  postinstall: ./scripts/postinstall.sh
+  preremove: ./scripts/preremove.sh
+
+overrides:
+  deb:
+    fields:
+      Recommends: "mariadb-server | mysql-server"
