@@ -8,6 +8,17 @@ galeracheck is a lightweight HTTP service that monitors the health of a Galera C
 
 ## Installation
 
+### From Debian Package (Recommended)
+
+Download the latest release from [GitHub Releases](https://github.com/tanji/mariadb-tools/releases):
+
+```bash
+wget https://github.com/tanji/mariadb-tools/releases/download/1.0.1-galeracheck/galeracheck_1.0.1_amd64.deb
+sudo dpkg -i galeracheck_1.0.1_amd64.deb
+```
+
+### From Source
+
 ```bash
 go build
 sudo cp galeracheck /usr/local/bin/
@@ -15,11 +26,34 @@ sudo cp galeracheck /usr/local/bin/
 
 ### Systemd Service
 
+If installing from source, manually install the systemd service:
+
 ```bash
 sudo cp galeracheck.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable galeracheck
 sudo systemctl start galeracheck
+```
+
+### Building Debian Package Locally
+
+To build a Debian package locally (requires [nfpm](https://nfpm.goreleaser.com/install/)):
+
+```bash
+# Build the binary
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+  -ldflags="-w -s -X main.version=1.0.1" \
+  -o galeracheck .
+
+# Build the package
+VERSION=1.0.1 nfpm package --packager deb --target .
+
+# Inspect the package
+dpkg-deb --info galeracheck_1.0.1_amd64.deb
+dpkg-deb --contents galeracheck_1.0.1_amd64.deb
+
+# Install
+sudo dpkg -i galeracheck_1.0.1_amd64.deb
 ```
 
 ## Usage
