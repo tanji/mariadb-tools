@@ -47,7 +47,6 @@ scripts:
   postinstall: ./scripts/postinstall.sh
   preremove: ./scripts/preremove.sh
 
-overrides:
-  deb:
-    fields:
-      Recommends: "mariadb-server | mysql-server"
+deb:
+  fields:
+    Recommends: "mariadb-server | mysql-server"
