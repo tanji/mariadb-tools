@@ -15,12 +15,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.21'
           cache: true
@@ -30,9 +30,13 @@ jobs:
         run: |
           TAG_NAME=${GITHUB_REF#refs/tags/}
           VERSION=${TAG_NAME%-galeracheck}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          # Normalize to semver (nfpm appends .0 to versions like 1.1 → 1.1.0)
+          IFS='.' read -ra parts <<< "$VERSION"
+          while [ ${#parts[@]} -lt 3 ]; do parts+=("0"); done
+          SEMVER="${parts[0]}.${parts[1]}.${parts[2]}"
+          echo "version=$SEMVER" >> $GITHUB_OUTPUT
           echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
+          echo "Building version: $SEMVER"
 
       - name: Build galeracheck binary
         working-directory: ./galeracheck
@@ -60,7 +64,7 @@ jobs:
           dpkg-deb --info galeracheck_${VERSION}_amd64.deb
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: galeracheck ${{ steps.version.outputs.version }}
@@ -107,7 +111,7 @@ jobs:
             galeracheck/galeracheck_${{ steps.version.outputs.version }}_amd64.deb
 
       - name: Upload package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: galeracheck-deb-${{ steps.version.outputs.version }}
           path: galeracheck/galeracheck_${{ steps.version.outputs.version }}_amd64.deb
