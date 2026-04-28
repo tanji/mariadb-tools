@@ -25,8 +25,9 @@ var (
 	sockopt     string
 	hostopt     string
 	portopt     string
-	awd         bool
-	dwr         bool
+	awd          bool
+	dwr          bool
+	sentinelFile string
 	user        string
 	password    string
 	mysqlsocket string
@@ -43,6 +44,7 @@ func init() {
 	flag.StringVar(&portopt, "mysql-port", "3306", "Port of monitored MySQL instance")
 	flag.BoolVar(&awd, "available-when-donor", false, "Available when donor")
 	flag.BoolVar(&dwr, "disable-when-readonly", false, "Disable when read_only flag is set (desirable when wanting to take a node out of the cluster without desync)")
+	flag.StringVar(&sentinelFile, "sentinel-file", "", "Path to sentinel file; if it exists the node is reported as unavailable (503)")
 	flag.BoolVar(&versionFlag, "version", false, "Print version and exit")
 	flag.Parse()
 
@@ -111,6 +113,15 @@ func main() {
 
 func clustercheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "text/html")
+
+	if sentinelFile != "" {
+		if _, err := os.Stat(sentinelFile); err == nil {
+			w.WriteHeader(503)
+			fmt.Fprint(w, "503 Galera Node is manually disabled")
+			return
+		}
+	}
+
 	var dsn string
 	if mysqlhost == "" {
 		dsn = fmt.Sprintf("%s:%s@unix(%s)/", user, password, mysqlsocket)
